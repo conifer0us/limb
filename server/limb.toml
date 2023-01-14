@@ -1,0 +1,11 @@
+# Configuration File for Limb Server with Default Values
+
+# SocketData
+
+HOST = "127.0.0.1"
+PORT = 6969
+
+# Storage
+
+DB = "./limb.db"
+LOG = "./limb.log"

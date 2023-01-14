@@ -1,0 +1,8 @@
+# Removes Limb DB
+*.db
+
+# Removes Limb Log Files
+*.log
+
+# Removes pycache
+*.pyc
