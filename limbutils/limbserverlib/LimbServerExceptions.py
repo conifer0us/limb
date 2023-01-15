@@ -1,6 +1,6 @@
 # Contains Classes for Handling Errors that Can be Encountered when Dealing with the Limb Server
 
-from limbserverlib.LimbLogger import LimbLogger as logger
+from limbutils.limbserverlib.LimbLogger import LimbLogger as logger
 
 # Exception that Says a Key is Improper
 class ImproperLimbConfiguration(Exception):

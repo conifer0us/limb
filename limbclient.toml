@@ -1,0 +1,4 @@
+# Private and Public Key Files for Encryption and Decryption
+
+PUBKEYFILE = "./limbclientpubkey.pem"
+PRIVKEYFILE = "./limbclientprivkey.pem"

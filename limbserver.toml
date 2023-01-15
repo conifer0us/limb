@@ -7,10 +7,12 @@ PORT = 6969
 
 # Storage
 
-DB = "./limb.db"
-LOG = "./limb.log"
+DB = "./limbserver.db"
+LOG = "./limbserver.log"
+WRITELOGS = false
+PRINTLOGS = true
 
 # Private and Public Key Files for Encryption and Decryption
 
-PUBKEYFILE = "./pubkey.pem"
-PRIVKEYFILE = "./privkey.pem"
+PUBKEYFILE = "./limbserverpubkey.pem"
+PRIVKEYFILE = "./limbserverprivkey.pem"

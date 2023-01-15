@@ -1,8 +1,8 @@
 # Minimalist File that Starts a Limb Server from a specified options file (OPTIONSPATH)
 
-from limbserverlib.LimbServer import LimbServer
+from limbutils.limbserverlib.LimbServer import LimbServer
 
-OPTIONSPATH = "./limb.toml"
+OPTIONSPATH = "./limbserver.toml"
 
 server = LimbServer(OPTIONSPATH)
 
