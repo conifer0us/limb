@@ -6,3 +6,6 @@
 
 # Removes pycache
 *.pyc
+
+# Remove Key Files
+*.pem

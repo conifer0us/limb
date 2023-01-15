@@ -11,5 +11,6 @@ class LimbLogger:
         message_str = f"{label}  |  {message}\n"
         if logTime:
             message_str = f'[{datetime.now().strftime("%d/%m/%Y %H:%M:%S")}]  ' + message_str
+        print(message_str)
         self.logFile.write(message_str)
         self.logFile.flush()

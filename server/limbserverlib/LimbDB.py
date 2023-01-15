@@ -8,9 +8,12 @@ class LimbDB:
 
     limbLogger : LimbLogger
 
-    database : sql.Connection
+    database : sql.Cursor
 
     def __init__(self, db_file, logger : LimbLogger):
         self.limbLogger = logger
-        self.database = sql.connect(db_file)
+        self.database = sql.connect(db_file).cursor() 
         self.limbLogger.registerEvent("INFO",f"Database file at {db_file} connected.")
+
+    def tableExists(self, tablename):
+        return bool(self.database.execute(f"""SELECT name FROM sqlite_master WHERE type='table' AND name='{tablename}';""").fetchall())

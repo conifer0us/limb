@@ -9,3 +9,8 @@ PORT = 6969
 
 DB = "./limb.db"
 LOG = "./limb.log"
+
+# Private and Public Key Files for Encryption and Decryption
+
+PUBKEYFILE = "./pubkey.pem"
+PRIVKEYFILE = "./privkey.pem"
