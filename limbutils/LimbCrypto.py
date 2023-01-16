@@ -1,10 +1,8 @@
 # Class that Handles Limb Cryptography for the Server
 
 from limbutils.limbserverlib.LimbLogger import LimbLogger
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric import rsa, utils, padding
+from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.backends.openssl.rsa import _RSAPublicKey, _RSAPrivateKey
 
 class LimbCrypto:
@@ -66,7 +64,6 @@ class LimbCrypto:
             if self.logger: self.logger.registerEvent("ERROR", "Decryption of Data Failed due to Improper Data")
         num_segments = int(len(binarydata) / 256)
         data = binarydata
-        datalen = len(binarydata)
         decrypted_data = bytes()
         for i in range(num_segments):
             current_segment = data[0:256]
@@ -88,6 +85,26 @@ class LimbCrypto:
                 label=None
         )
     )
+
+    # A Method that Signs Small Data Segments using the RSA library (MUST BE ONLY A SMALL AMOUNT OF BYTES)
+    def signSmallData(self, smalldata : bytes, private_key : _RSAPrivateKey = None) -> bytes:
+        if private_key == None:
+            private_key = self.getPrivKey()
+        return private_key.sign(smalldata,
+                padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH
+            ), hashes.SHA256()
+        )
+
+    def verifySignatureData(self, message : bytes, signature : bytes, public_key : _RSAPublicKey = None) -> bytes:
+        if public_key == None:
+            public_key = self.getPubKey()
+            public_key.verify(signature, message,
+                padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH
+                ), hashes.SHA256())
 
     # A Method that Encrypts Data of Any Length by Breaking it into segments with a Specified Key. If no Key is Specified, the Class defined Key is used.
     def encryptData(self,binarydata : bytes, key : _RSAPublicKey = None) -> bytes:

@@ -39,13 +39,14 @@ class LimbServer:
     # Tells the Limb Server to Start Listening from the Host and Port specified in the configuration file 
     def Start(self) -> None:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind((self.options["HOST"], self.options["PORT"]))
             self.limbLogger.registerEvent("INFO", f"Server Started and Bound to {self.options['HOST']}:{self.options['PORT']}")
             while True:
                 s.listen()
                 conn, addr = s.accept()
                 with conn:
-                    data = conn.recv(4096)
+                    data = conn.recv(4097)
                     self.limbLogger.registerEvent("CONN", f"{addr} has connected to the server. Packet Length: {len(data)}B")
                     return_data = self.packetHandler.parse_packet(data)
                     conn.send(return_data)

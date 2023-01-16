@@ -21,4 +21,7 @@ if __name__ == "__main__":
 
     socket = ClientPacketController("127.0.0.1", 6969, interface, LimbCrypto(options["PRIVKEYFILE"], options["PUBKEYFILE"]))
 
-    socket.getServerPublicKey()
+    while True:
+        val = input("What would you like your username to be?  ")
+        print("Trying to Connect to Server")
+        print(socket.registerUsername(val))
