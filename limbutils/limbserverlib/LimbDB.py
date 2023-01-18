@@ -47,6 +47,13 @@ class LimbDB:
         self.createUsersTable()
         self.createBoardsTable()
 
+    # Gets the Public Key that corresponds to the given Username in the users database
+    def getPubKeyFromUsername(self, username : str) -> bytes:
+        try:
+            return self.database.cursor().execute(f"SELECT PubKey FROM users WHERE Uname='{username}'").fetchall()[0][0]
+        except:
+            return None
+
     # Gets the Public Key that corresponds to the given User ID in the users database 
     def getPubKeyFromUID(self, uid : bytes) -> bytes:
         uidDigest = uid.hex()
@@ -54,13 +61,6 @@ class LimbDB:
             return self.database.cursor().execute(f"SELECT PubKey FROM users WHERE UserID='{uidDigest}'").fetchall()[0][0]
         except:
             return None
-
-    # Checks if a Given Query Returns any Data
-    def queryReturnsData(self, query_str : str) -> bool:
-        query_results = self.database.cursor().execute(query_str).fetchall()
-        if (None,) in query_results:
-            query_results.remove((None,))
-        return bool(query_results)
 
     # Takes in a User's ID and a Message Board's ID and adds the Message Board to the User's Boards Table. Includes an encrypted key for the board if supplied as in the case of invites
     def addUserToBoard(self, userid : str, boardid: str, boardname : str, boardkey : bytes = b'') -> None:
@@ -72,7 +72,7 @@ class LimbDB:
     def registerKeyHash(self, keydata : bytes) -> None:
         uid = sha256(keydata).hexdigest()
         # Following Statement Checks if UserID is already in users table
-        if self.queryReturnsData(f"SELECT UserID FROM users WHERE UserID='{uid}'"):
+        if DBUtils.queryReturnsData(self.database, f"SELECT UserID FROM users WHERE UserID='{uid}'"):
             return
         SQL_statement = "INSERT INTO users(UserID, PubKey) VALUES (?, ?)"
         data = (uid, keydata)
@@ -85,11 +85,11 @@ class LimbDB:
         uidstr = uid.hex()
         
         # Checks if User already has a username
-        if self.queryReturnsData(f"SELECT Uname FROM users WHERE UserID='{uidstr}'"):
+        if DBUtils.queryReturnsData(self.database, f"SELECT Uname FROM users WHERE UserID='{uidstr}'"):
             return b'Username Already Added for this User'
 
         # Checks if User is trying to register a username that already exists
-        if self.queryReturnsData(f"SELECT Uname FROM users WHERE Uname='{uname}'"):
+        if DBUtils.queryReturnsData(self.database, f"SELECT Uname FROM users WHERE Uname='{uname}'"):
             return b'Username Already Taken'
 
         # Updates User with only Key and ID data. Adds Username and Signature
@@ -106,11 +106,11 @@ class LimbDB:
         creator_str = creatoruid.hex()
 
         # Returns If a Message Board with a Given ID has already been registered
-        if self.queryReturnsData(f"SELECT BoardID FROM boards WHERE BoardID='{board_str}'"):
+        if DBUtils.queryReturnsData(self.database, f"SELECT BoardID FROM boards WHERE BoardID='{board_str}'"):
             return b'A message board with this ID has already been added.'
         
         # Returns If a Message Board with a Given Name has already been assigned to the User (Prevents Confusion from boards of the same name)
-        if self.queryReturnsData(f"SELECT Board FROM {DBUtils.userdbname(creator_str)} WHERE BoardName='{boardname}'"):
+        if DBUtils.queryReturnsData(self.database, f"SELECT Board FROM {DBUtils.userdbname(creator_str)} WHERE BoardName='{boardname}'"):
             return b'You are already in a message board of that name. You cannot create another of the same name.'
 
         # Adds the Board Data into the Boards Table

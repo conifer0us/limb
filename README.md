@@ -56,3 +56,11 @@ Once a client has created a username, it is easy to create a new message board u
 The fourth part of the packet, however, is different than the fourth part of the packet in Connection Type 2. In Connection Type 3, the fourth part of the packet contains information about the message board being created. When crafting packets, the client creates a 128 bit AES key that will be shared only with people who are invited to join the board. This key is hashed using sha256 to create the server id. Appended to the 256 bit hashed server ID is  the name of the server encoded in ASCII with the same naming requirements as usernames. These two pieces of appended information constitute the fourth part of the packet. 
 
 When the server receives a packet of this connection type, it will first verify the signature for the user that is specified in bytes 1 to 256. Then, it will process the fourth part of the packet to obtain a ServerID and server name. The server ID and server name will be logged alongside the creator in the database of message boards. Then, the message board created is added to the creator's database of boards to ensure that they are allowed to post on their own board. Finally, a database table dedicated to storing messages for that board is created.
+
+### Get User Data (GETU): Connection Type 4
+
+Now that a client has created a message board, they must invite other users to the message board, but in order to do this, the server must send some information to the client about what user they are trying to invite. Connection Type 4 allows a client to query a server for public key information about a specific username. 
+
+The client constructs this packet in an identical way to Connection Type 2, setting the first byte to 4, encrypting its hash id, and creating a signature for the data in the fourth part of the packet. A username encrypted with the server's public key makes up the fourth part of the packet.
+
+In response, the server will parse the username, gather the public key for that user, and return a packet that contains the user's public key, encrypted with the client's public key.

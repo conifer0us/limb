@@ -36,20 +36,29 @@ class ClientPacketController:
     
     # CONNECTION 2 IMPLEMENTATION: Sends a Username to Register with the Server
     def registerUsername(self, username : str) -> bytes:
+        if not UsernameFormat.is_properly_formatted(username):
+            return b'Incorrect Name Format'
         asciiname = username.encode('ascii')
         return self.sendSignedPacket(2, asciiname)
 
     # CONNECTION 3 IMPLEMENTATION: Registers a New Message Board with the Server
     def registerNewMessageBoard(self, boardname : str) -> bytes:
         if not UsernameFormat.is_properly_formatted(boardname):
-            return b'Error Converting Username'
+            return b'Incorrect Name Format'
         asciiboardname = boardname.encode("ascii")
         serverKey = LimbCrypto.generate_aes_key()
         serverkeyhash = sha256(serverKey).digest() 
         packet = serverkeyhash + asciiboardname
         conn = self.sendSignedPacket(3, packet)
-        self.database.addServerToDB(serverkeyhash, boardname, serverKey, self.clientID)
+        self.database.addBoardToDB(serverkeyhash, boardname, serverKey, self.clientID)
         return conn
+
+    # CONNECTION 4 IMPLEMENTATION: Gets User Public Key from Username
+    def getUserKey(self, username : str) -> bytes:
+        if not UsernameFormat.is_properly_formatted(username):
+            return b'Incorrect Name Format'
+        asciiname = username.encode('ascii')
+        return self.sendSignedPacket(4, asciiname)
 
     # A Function that Works on top of GetRawDataPacket to Sign Messages before being Sent. Returns bytes data for response
     def sendSignedPacket(self, connectiontype : int, binarydata : bytes, encryption_expected = True) -> bytes:

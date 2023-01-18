@@ -24,12 +24,14 @@ class PacketReader:
         self.packet_function_mapping = {
             1 : self.pubkey_welcome, 
             2 : self.register_username, 
-            3 : self.register_server
+            3 : self.register_server, 
+            4 : self.get_user_pubkey
         }
 
     # A Method that interpret's packet data and calls the corresponding method on that data according to the type of request that is being processed
     def parse_packet(self, bytearray : bytes) -> bytes:
         packetMode = int(bytearray[0])
+        self.logger.registerEvent("CONN", f"Connection Read. Processing Request Type {packetMode}")
         try:
             return self.packet_function_mapping[packetMode](bytearray[1:])
         except KeyError:
@@ -73,6 +75,20 @@ class PacketReader:
             return self.EncryptWithClientKey(b'Server name not in the proper format.')
         return_data = self.db.registerMessageBoard(serverID, boardname, uidbytes)
         self.logger.registerEvent("CRE", f"User {uidbytes.hex()} submitted board registration for board {boardname} ({serverID.hex()}). Returned {return_data}.")
+        return self.EncryptWithClientKey(return_data, client_pubkey_object)
+
+    # CONNECTION 4 IMPLEMENTATION
+    #Function that Handles Connections of Type 4. Returns PubKey bytes for a given Username
+    def get_user_pubkey(self, bytearray : bytes) -> bytes:
+        verified_boolean, username, client_pubkey_object, uidbytes, signature = self.ReadUIDSignedPacket(bytearray, ascii_encoding=True)
+        if not verified_boolean:
+            return b'Your signed packet could not be parsed'
+        if not UsernameFormat.is_properly_formatted(username):
+            return b'That username is not properly formatted'
+        return_data = self.db.getPubKeyFromUsername(username)
+        if return_data == None:
+            return_data = b'No Key Found for that User'
+        self.logger.registerEvent("GETU", f"User {uidbytes.hex()} requested key information for {username}. Returned {return_data}. Connection closed.")        
         return self.EncryptWithClientKey(return_data, client_pubkey_object)
 
     # Function that Handles Packets that Should Be Signed by a User who has Previously established correct connection with the server
