@@ -2,3 +2,4 @@
 
 PUBKEYFILE = "./limbclientpubkey.pem"
 PRIVKEYFILE = "./limbclientprivkey.pem"
+DB = "./limbclient.db"

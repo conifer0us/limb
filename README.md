@@ -47,4 +47,12 @@ The server reads this packet as follows.
 1. It identifies that the connection is of type 2. 
 2. It looks at the next 256 bytes, decrypts them using its private key, finds the client ID, and references its database to find the client's key. 
 3. The server looks at the next 512 bytes. It decrypts those bytes to find the signature of the username using the public key found above.
-4. The server uses the client's public key to decrypt the rest of the message, finding the username. The server checks the username. If the username fits the requirements and matches the signature, the client's username and signature for the username is inserted alongside the client's ID and public key in the database.
+4. The server uses the client's public key to decrypt the rest of the message, finding the username. The server checks the username. If the username fits the requirements and matches the signature, the client's username and signature for the username is inserted alongside the client's ID and public key in the database. A table is created to store information about what servers the client is in.
+
+### Create Message Board (CRE): Connection Type 3
+
+Once a client has created a username, it is easy to tell the server to create a new message board using connection type 3. In this connection type, a similar scheme is used to the previous method. The first three parts of the packet are identical, containing the connection type, encrypted client ID, and signature for the data in the rest of the packet over the next 256B.
+
+The fourth part of the packet that is signed and processed contains information about the server. When crafting packets, the client creates a 256 bit AES key that will be shared only with people who are invited to join the server. This key is hashed using sha256 to create the server id. Appended to the 256 bit hashed server ID will be the name of the server encoded in ASCII with the same naming requirements as usernames. These two pieces of appended information will become the fourth part of the packet. 
+
+When the server receives a packet of this connection type, it will first verify the signature for the user that is specified in bytes 1 to 257. Then, it will process the fourth part of the packet to obtain a ServerID and server name. The server ID and server name will be logged alongside the creator in the database, and a new table will be created for that server. Then, the server ID will be logged in the individual user's table so that the server knows in the future that the owner belongs to that server.

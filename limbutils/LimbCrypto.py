@@ -1,9 +1,12 @@
 # Class that Handles Limb Cryptography for the Server
 
 from limbutils.limbserverlib.LimbLogger import LimbLogger
-from cryptography.hazmat.primitives.asymmetric import rsa, utils, padding
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.backends.openssl.rsa import _RSAPublicKey, _RSAPrivateKey
+from Crypto.Cipher import AES
+from hashlib import sha256
+from os import urandom
 
 class LimbCrypto:
     EXPONENT = 65537
@@ -86,7 +89,7 @@ class LimbCrypto:
         )
     )
 
-    # A Method that Signs Small Data Segments using the RSA library (MUST BE ONLY A SMALL AMOUNT OF BYTES)
+    # A Method that Signs Small Data Segments using the RSA library. May be any size, as it implements hashing
     def signSmallData(self, smalldata : bytes, private_key : _RSAPrivateKey = None) -> bytes:
         if private_key == None:
             private_key = self.getPrivKey()
@@ -97,14 +100,20 @@ class LimbCrypto:
             ), hashes.SHA256()
         )
 
-    def verifySignatureData(self, message : bytes, signature : bytes, public_key : _RSAPublicKey = None) -> bytes:
-        if public_key == None:
-            public_key = self.getPubKey()
-            public_key.verify(signature, message,
+    # A Method that Verifies an RSA generated Signature for a piece of data. Returns a boolean value that states whether the signature was verified or not.
+    def verifySignatureData(self, message : bytes, signature : bytes, public_key : _RSAPublicKey = None) -> bool:
+        try:
+            pubkey = public_key
+            if pubkey == None:
+                pubkey = self.getPubKey()
+            pubkey.verify(signature, message,
                 padding.PSS(
                 mgf=padding.MGF1(hashes.SHA256()),
                 salt_length=padding.PSS.MAX_LENGTH
                 ), hashes.SHA256())
+            return True
+        except:
+            return False
 
     # A Method that Encrypts Data of Any Length by Breaking it into segments with a Specified Key. If no Key is Specified, the Class defined Key is used.
     def encryptData(self,binarydata : bytes, key : _RSAPublicKey = None) -> bytes:
@@ -158,3 +167,19 @@ class LimbCrypto:
             privfile.write(pem_private_key)
 
         if self.logger: self.logger.registerEvent("KGEN", f"Public and Private RSA Keys Generated at {self.pubkeyfile} and {self.privkeyfile}")
+
+    # A function that Encrypts a given set of bytes with AES encryption using a supplied key and initial vector
+    def aes_encrypt(inputbytes : bytes, key : bytes, iv : bytes):
+        aes_obj = AES.new(key, AES.MODE_CFB, iv)
+        return aes_obj.encrypt(inputbytes)
+
+    # A function that Decrypts a given set of bytes with AES encryption using a supplied key and initial vector
+    def aes_encrypt(inputbytes : bytes, key : bytes, iv : bytes):
+        aes_obj = AES.new(key, AES.MODE_CFB, iv)
+        return aes_obj.decrypt(inputbytes)
+
+    def calculate_aes_iv(input : bytes):
+        return sha256(input).digest()[0:16]
+
+    def generate_aes_key():
+        return urandom(16)

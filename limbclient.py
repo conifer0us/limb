@@ -3,10 +3,11 @@
 from limbutils.limbclientlib.ClientPacketController import ClientPacketController
 from limbutils.limbclientlib.InterfaceController import InterfaceController
 from limbutils.LimbCrypto import LimbCrypto
+from limbutils.limbclientlib.LimbClientDB import LimbClientDB
 import toml
 
 CONFIGFILE = "./limbclient.toml"
-REQUIREDOPTIONS = ["PUBKEYFILE", "PRIVKEYFILE"]
+REQUIREDOPTIONS = ["PUBKEYFILE", "PRIVKEYFILE", "DB"]
 
 if __name__ == "__main__":
     interface = InterfaceController() 
@@ -19,9 +20,13 @@ if __name__ == "__main__":
         if option not in options.keys():
             interface.showInformation("Your configuration is broken. Fix your limbclient.toml and try again.")        
 
-    socket = ClientPacketController("127.0.0.1", 6969, interface, LimbCrypto(options["PRIVKEYFILE"], options["PUBKEYFILE"]))
+    database = LimbClientDB(options["DB"])
+
+    socket = ClientPacketController("127.0.0.1", 6969, interface, LimbCrypto(options["PRIVKEYFILE"], options["PUBKEYFILE"]), database)
+
+    val = input("What would you like your username to be?  ")
+    print(socket.registerUsername(val))
 
     while True:
-        val = input("What would you like your username to be?  ")
-        print("Trying to Connect to Server")
-        print(socket.registerUsername(val))
+        val = input("What would you like your board name to be?  ")
+        print(socket.registerNewMessageBoard(val))
