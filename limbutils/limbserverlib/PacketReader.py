@@ -57,7 +57,9 @@ class PacketReader:
             return b'Your signed packet could not be parsed'
         if not UsernameFormat.is_properly_formatted(uname):
             return self.EncryptWithClientKey(b'Username not in the proper format', client_pubkey_object)
-        return self.EncryptWithClientKey(self.db.registerUName(uidbytes, signature, uname), client_pubkey_object)
+        return_data = self.db.registerUName(uidbytes, signature, uname)
+        self.logger.registerEvent("SET", f"User {uidbytes.hex()} has requested to register {uname}. Returned {return_data}.")
+        return  self.EncryptWithClientKey(return_data, client_pubkey_object)
 
     # CONNECTION 3 IMPLEMENTATION
     # Function that Handles Connections of Type 3. Registers Message Boards to the Server.
@@ -69,8 +71,9 @@ class PacketReader:
             return b'Your signed packet could not be parsed'
         if not UsernameFormat.is_properly_formatted(boardname):
             return self.EncryptWithClientKey(b'Server name not in the proper format.')
-        return self.EncryptWithClientKey(self.db.registerMessageBoard(serverID, boardname, uidbytes), client_pubkey_object)
-
+        return_data = self.db.registerMessageBoard(serverID, boardname, uidbytes)
+        self.logger.registerEvent("CRE", f"User {uidbytes.hex()} submitted board registration for board {boardname} ({serverID.hex()}). Returned {return_data}.")
+        return self.EncryptWithClientKey(return_data, client_pubkey_object)
 
     # Function that Handles Packets that Should Be Signed by a User who has Previously established correct connection with the server
     # RETURNS: verified_boolean, data, client_public_key, client_id, signature
