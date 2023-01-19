@@ -178,8 +178,10 @@ class LimbCrypto:
         aes_obj = AES.new(key, AES.MODE_CFB, iv)
         return aes_obj.decrypt(inputbytes)
 
-    def calculate_aes_iv(input : bytes):
+    # Calculates an Initial Vector to Protect the Key Given Some bytes input
+    def calculate_aes_iv(input : bytes) -> bytes:
         return sha256(input).digest()[0:16]
 
-    def generate_aes_key():
+    # Generates a 16B AES Key
+    def generate_aes_key() -> bytes:
         return urandom(16)

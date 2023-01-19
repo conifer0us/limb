@@ -58,7 +58,37 @@ class ClientPacketController:
         if not UsernameFormat.is_properly_formatted(username):
             return b'Incorrect Name Format'
         asciiname = username.encode('ascii')
-        return self.sendSignedPacket(4, asciiname)
+        userkey = self.sendSignedPacket(4, asciiname)
+        uid = sha256(userkey).hexdigest()
+        try:
+            self.cryptograpy.decodePubKeyBytes(userkey)
+            self.database.addUsersToDB(uid, username, userkey)
+            return userkey
+        except:
+            return None
+
+    # Returns a UserID for a Username; returns None if the User does not exist
+    def getUserID(self, username : str) -> bytes:
+        id = self.database.getUserIDByName(username)
+        if id:
+            return id
+        id = self.getUserKey(username)
+        if not id:
+            return None
+        return sha256(id).digest()
+
+    # CONNECTION 5 IMPLEMENTATION: Invites Another User to Join a Board by Username
+    def inviteUserToBoard(self, username, boardname):
+        boardID = self.database.getBoardIDByName(boardname)
+        if not boardID:
+            return b'Board Not Found'
+        peerID = self.getUserID(username)
+        if not peerID:
+            return b'User Not Found'
+        keybytes = self.database.getUserKeyByName(username)
+        key = self.cryptograpy.decodePubKeyBytes(keybytes)
+        packet_data = boardID + peerID + self.cryptograpy.encryptData(self.database.getBoardKeyByID(boardID), key)
+        return self.sendSignedPacket(5, packet_data) 
 
     # A Function that Works on top of GetRawDataPacket to Sign Messages before being Sent. Returns bytes data for response
     def sendSignedPacket(self, connectiontype : int, binarydata : bytes, encryption_expected = True) -> bytes:

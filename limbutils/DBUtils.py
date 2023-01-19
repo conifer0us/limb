@@ -17,7 +17,26 @@ class DBUtils:
 
     # Checks if a Given Query Returns any Data
     def queryReturnsData(dbcon : Connection, query_str : str) -> bool:
-        query_results = dbcon.cursor().execute(query_str).fetchall()
+        try:
+            query_results = dbcon.cursor().execute(query_str).fetchall()
+        except:
+            return None
         if (None,) in query_results:
             query_results.remove((None,))
         return bool(query_results)
+    
+    # Fetches a Single Record from a Query if Record Exists. If not, returns None
+    def fetchSingleRecord(dbcon : Connection, query_str : str, query_tuple = None) -> bool:
+        try:
+            if not query_tuple:
+                database_data = dbcon.cursor().execute(query_str).fetchall()
+            else:
+                database_data = dbcon.cursor().execute(query_str, query_tuple).fetchall()
+        except:
+            return None
+        if (None,) in database_data:
+            database_data.remove((None,))
+        if not database_data:
+            return None
+        else:
+            return database_data[0][0]

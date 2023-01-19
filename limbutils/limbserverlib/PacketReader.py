@@ -25,7 +25,8 @@ class PacketReader:
             1 : self.pubkey_welcome, 
             2 : self.register_username, 
             3 : self.register_server, 
-            4 : self.get_user_pubkey
+            4 : self.get_user_pubkey, 
+            5 : self.invite_user_to_board
         }
 
     # A Method that interpret's packet data and calls the corresponding method on that data according to the type of request that is being processed
@@ -66,16 +67,20 @@ class PacketReader:
     # CONNECTION 3 IMPLEMENTATION
     # Function that Handles Connections of Type 3. Registers Message Boards to the Server.
     def register_server(self, bytearray : bytes) -> bytes:
-        verified_boolean, packetdata, client_pubkey_object, uidbytes, signature = self.ReadUIDSignedPacket(bytearray)
-        serverID = packetdata[0:32]
-        boardname = packetdata[32:].decode("ascii")
-        if not verified_boolean:
-            return b'Your signed packet could not be parsed'
-        if not UsernameFormat.is_properly_formatted(boardname):
-            return self.EncryptWithClientKey(b'Server name not in the proper format.')
-        return_data = self.db.registerMessageBoard(serverID, boardname, uidbytes)
-        self.logger.registerEvent("CRE", f"User {uidbytes.hex()} submitted board registration for board {boardname} ({serverID.hex()}). Returned {return_data}.")
-        return self.EncryptWithClientKey(return_data, client_pubkey_object)
+        try:
+            verified_boolean, packetdata, client_pubkey_object, uidbytes, signature = self.ReadUIDSignedPacket(bytearray)
+            serverID = packetdata[0:32]
+            boardname = packetdata[32:].decode("ascii")
+            if not verified_boolean:
+                return b'Your signed packet could not be parsed'
+            if not UsernameFormat.is_properly_formatted(boardname):
+                return self.EncryptWithClientKey(b'Server name not in the proper format.')
+            return_data = self.db.registerMessageBoard(serverID, boardname, uidbytes)
+            self.logger.registerEvent("CRE", f"User {uidbytes.hex()} submitted board registration for board {boardname} ({serverID.hex()}). Returned {return_data}.")
+            return self.EncryptWithClientKey(return_data, client_pubkey_object)
+        except Exception as e:
+            self.logger.registerEvent("FAIL", f"Failed to Parse Registration Packet. Error: {e}.")
+            return b'Error Parsing Your Registration Packet'
 
     # CONNECTION 4 IMPLEMENTATION
     #Function that Handles Connections of Type 4. Returns PubKey bytes for a given Username
@@ -90,6 +95,26 @@ class PacketReader:
             return_data = b'No Key Found for that User'
         self.logger.registerEvent("GETU", f"User {uidbytes.hex()} requested key information for {username}. Returned {return_data}. Connection closed.")        
         return self.EncryptWithClientKey(return_data, client_pubkey_object)
+
+    # CONNECTION 5 IMPLEMENTATION
+    #Function that Handles Connections of Type 4. Invites a User to a Message Board
+    def invite_user_to_board(self, bytearray : bytes) -> bytes:
+        try:
+            verified_boolean, packetdata, client_pubkey_object, uidbytes, signature = self.ReadUIDSignedPacket(bytearray, ascii_encoding=False)
+            if not verified_boolean:
+                return b'Your signed packet could not be parsed'
+            boardID = packetdata[0:32]
+            clientID = packetdata[32:64]
+            inviteBytes = packetdata[64:]
+            return_data = self.db.inviteUserToBoard(uidbytes, clientID, boardID, inviteBytes)
+            if return_data == None:
+                return_data = b'No Key Found for that User'
+            self.logger.registerEvent("INV", f"User {uidbytes.hex()} invited {clientID.hex()} to board {boardID.hex()}. Returned {return_data}. Connection closed.")        
+            return self.EncryptWithClientKey(return_data, client_pubkey_object)
+        except Exception as e:
+            raise e
+            self.logger.registerEvent("FAIL", f"Failed to Parse Invite Packet. Error: {e}.")
+            return b'Error Parsing Your Registration Packet'
 
     # Function that Handles Packets that Should Be Signed by a User who has Previously established correct connection with the server
     # RETURNS: verified_boolean, data, client_public_key, client_id, signature

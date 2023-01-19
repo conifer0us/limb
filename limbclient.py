@@ -24,11 +24,11 @@ if __name__ == "__main__":
 
     socket = ClientPacketController("127.0.0.1", 6969, interface, LimbCrypto(options["PRIVKEYFILE"], options["PUBKEYFILE"]), database)
 
-    print(socket.getUserKey("hilto"))
-
-    val = input("What would you like your username to be?  ")
-    print(socket.registerUsername(val))
-
+    username = input("What would you like your username to be?")
+    print(socket.registerUsername(username))   
     while True:
-        val = input("What would you like your board name to be?  ")
-        print(socket.registerNewMessageBoard(val))
+        boardname = input("What would you like to name your board? ")
+        print(socket.registerNewMessageBoard(boardname))
+        inviteuser = input("What user would you like to invite? ")
+        inviteboard = input("What board would you like to invite them to? ")
+        print(socket.inviteUserToBoard(inviteuser, inviteboard))

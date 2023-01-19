@@ -18,12 +18,13 @@ class LimbClientDB:
     # Initializes The Users Database with UserID and Uname
     def createUsersTable(self):
         if not DBUtils.tableExists(self.database, "Users"):
-            self.database.cursor().execute("CREATE TABLE Users (UserID varchar(64), Uname varchar)")
+            self.database.cursor().execute("CREATE TABLE Users (UserID varchar(64), Uname varchar, Ukey varbinary)")
             self.database.commit()
 
     # Initializes A Database for a Specific Message Board, Storing Message ID, Sender Name, Message Data, and Send Time
     def createBoardMessageDB(self, boardstr):
         self.database.cursor().execute(f"CREATE TABLE {DBUtils.boarddbname(boardstr)} (id INTEGER PRIMARY KEY AUTOINCREMENT, Sender varchar(64), Message varchar, SendTime datetime)")
+        self.database.commit()
 
     # Initiailzes the class with a database file to use
     def __init__(self, db_file : str) -> None:
@@ -37,7 +38,46 @@ class LimbClientDB:
         ownerstr = OwnerID.hex()
 
         # Checks if a Message Board with this ID has already been created
-        if DBUtils.queryReturnsData(self.database, f"SELECT BoardID from Boards where BoardID='{boardstr}'"):
+        if not DBUtils.queryReturnsData(self.database, f"SELECT BoardID from Boards where BoardID='{boardstr}'"):
             self.database.cursor().execute("INSERT INTO Boards (BoardID, BoardName, BoardKey, OwnerID) VALUES (?,?,?,?)", (boardstr, BoardName, BoardKey, ownerstr))
             self.database.commit()
             self.createBoardMessageDB(boardstr)
+
+    # Adds User Data to the Users Database
+    def addUsersToDB(self, Uid : str, Uname : str, Ukey : bytes):
+        # Checks if User with this ID has already been created
+        if not DBUtils.queryReturnsData(self.database, f"SELECT UserID from Users where UserID='{Uid}'"):
+            self.database.cursor().execute("INSERT INTO Users (UserID, Uname, Ukey) VALUES (?,?,?)", (Uid, Uname, Ukey))
+            self.database.commit()
+
+    # Gets the ID of a User by a Name
+    def getUserIDByName(self, uname : str) -> bytes:
+        database_data = DBUtils.fetchSingleRecord(self.database, f"SELECT UserID FROM Users where Uname='{uname}'")
+        if not database_data:
+            return None
+        else:
+            return bytes.fromhex(database_data)
+
+    # Gets Key of User by Name
+    def getUserKeyByName(self, username : str) -> bytes:
+        database_data = DBUtils.fetchSingleRecord(self.database, f"SELECT Ukey FROM Users where Uname=?", (username,))
+        if not database_data:
+            return None
+        else:
+            return database_data
+
+    # Gets the ID of a Board from a Name
+    def getBoardIDByName(self, boardname : str) -> bytes:
+        database_data = DBUtils.fetchSingleRecord(self.database, f"SELECT BoardID from Boards WHERE BoardName=?", (boardname,))
+        if not database_data:
+            return None
+        else:
+            return bytes.fromhex(database_data)
+    
+    # Gets the Key of a Board from a Name
+    def getBoardKeyByID(self, boardID : bytes) -> bytes:
+        database_data = DBUtils.fetchSingleRecord(self.database, f"SELECT BoardKey FROM Boards WHERE BoardID=?", (boardID.hex(),))
+        if not database_data:
+            return None
+        else:
+            return database_data

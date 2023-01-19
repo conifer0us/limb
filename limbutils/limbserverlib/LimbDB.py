@@ -62,8 +62,24 @@ class LimbDB:
         except:
             return None
 
-    # Takes in a User's ID and a Message Board's ID and adds the Message Board to the User's Boards Table. Includes an encrypted key for the board if supplied as in the case of invites
-    def addUserToBoard(self, userid : str, boardid: str, boardname : str, boardkey : bytes = b'') -> None:
+    # Gets the Name of a Board from its ID
+    def getBoardNameFromID(self, boardid : str) -> str:
+        try:
+            return self.database.cursor().execute(f"SELECT Name FROM Boards WHERE BoardID='{boardid}'").fetchall()[0][0]
+        except:
+            return None
+
+    # Gets the String Identifier of a Message Board Owner
+    def userOwnsBoard(self, uid : str, boardid : str) -> bool:
+        return DBUtils.queryReturnsData(self.database, f"SELECT BoardID FROM boards WHERE (BoardID='{boardid}' AND OwnerID='{uid}')")
+
+    # Checks if a Specific Message Board has been assigned to a user
+    def userOnBoard(self, uid : str, boardid : str) -> bool:
+        return DBUtils.queryReturnsData(self.database, f"SELECT Board FROM {DBUtils.userdbname(uid)} WHERE Board='{boardid}'")
+
+    # Takes in a User's ID and a Message Board's ID and adds the Message Board to the User's Boards Table. Includes an encrypted key for the board
+    def addUserToBoard(self, userid : str, boardid: str, boardkey : bytes) -> None:
+        boardname = self.getBoardNameFromID(boardid)
         self.database.cursor().execute(f"INSERT INTO {DBUtils.userdbname(userid)} (Board, BoardKey, BoardName) VALUES (?, ?, ?)", (boardid, boardkey, boardname))
         self.database.commit()
         self.limbLogger.registerEvent("DATA", f"User {userid} added to message board {boardid}")
@@ -109,18 +125,32 @@ class LimbDB:
         if DBUtils.queryReturnsData(self.database, f"SELECT BoardID FROM boards WHERE BoardID='{board_str}'"):
             return b'A message board with this ID has already been added.'
         
-        # Returns If a Message Board with a Given Name has already been assigned to the User (Prevents Confusion from boards of the same name)
-        if DBUtils.queryReturnsData(self.database, f"SELECT Board FROM {DBUtils.userdbname(creator_str)} WHERE BoardName='{boardname}'"):
-            return b'You are already in a message board of that name. You cannot create another of the same name.'
+        # Returns If a Message Board with a Given Name has already been created 
+        if DBUtils.queryReturnsData(self.database, f"SELECT Name FROM boards WHERE Name='{boardname}'"):
+            return b'A message board with that name already exists.'
 
         # Adds the Board Data into the Boards Table
         SQL_statement = "INSERT INTO boards (BoardID, Name, OwnerID) VALUES (?, ?, ?)"
         data = (board_str, boardname, creator_str)
         self.database.cursor().execute(SQL_statement, data)
+        self.database.commit()
 
         # Creates A Board Message Table for the current Board ID
         self.createBoardMessageTable(board_str)
 
-        self.addUserToBoard(creator_str, board_str, boardname)
         self.limbLogger.registerEvent("DATA", f"Message Board {boardname} created for user {creator_str}")
         return b'Message Board Created'
+
+    # Invites a User to a Message Board by Adding the Board to the User's Database
+    def inviteUserToBoard(self, inviterID : bytes, invitedID : bytes, boardID : bytes, boardKey : bytes) -> bytes:
+        invitedstr = invitedID.hex()
+        inviterstr = inviterID.hex()
+        boardstr = boardID.hex()
+        if not DBUtils.tableExists(self.database, DBUtils.userdbname(invitedstr)):
+            return b'That User Does Not Exist'
+        if not self.userOwnsBoard(inviterstr, boardstr):
+            return b'You do not have permission to access that board'
+        if self.userOnBoard(invitedstr, boardstr) or self.userOwnsBoard(invitedstr, boardstr):
+            return b'User already on that board'
+        self.addUserToBoard(invitedstr, boardstr, boardKey)
+        return b'User Added to Board'

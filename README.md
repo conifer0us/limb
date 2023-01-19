@@ -64,3 +64,15 @@ Now that a client has created a message board, they must invite other users to t
 The client constructs this packet in an identical way to Connection Type 2, setting the first byte to 4, encrypting its hash id, and creating a signature for the data in the fourth part of the packet. A username encrypted with the server's public key makes up the fourth part of the packet.
 
 In response, the server will parse the username, gather the public key for that user, and return a packet that contains the user's public key, encrypted with the client's public key.
+
+### Invite User (INV): Connection Type 5
+
+Client 1 has just created a message board and wants to invite Client 2 to join it. To do this Client 1 can use Connection Type 5, Invite User. Before submitting a packet, however, there are a few things that have to be done. First, Client 1 has to use Connection Type 4 in order to obtain Client 2's public key. Then, Client 1 can take the obtained public key and use it to encrypt the shared server AES key. This will be referred to as the Invite Key.
+
+Then, Client 1 can begin crafting its packet to the server. Connection Type 5's packet is laid out in a very similar way to Connection Type 2's signed packet where the first three parts of the packet are used to lay out the connection type and provide a signature. The fourth part of the packet is crafted in three parts:
+
+1. The 256 Bit Message Board ID
+2. Client 2's 256 Bit Client ID
+3. Invite Key Data
+
+When the server receives this packet, it will first ensure that the signature is correct for the packet and that Client 1, submitting the invite, is the owner of the specified server. Then, the server will add the server to Client 2's Boards Database along with the Invite Key.
