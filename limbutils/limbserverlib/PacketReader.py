@@ -112,9 +112,12 @@ class PacketReader:
             self.logger.registerEvent("INV", f"User {uidbytes.hex()} invited {clientID.hex()} to board {boardID.hex()}. Returned {return_data}. Connection closed.")        
             return self.EncryptWithClientKey(return_data, client_pubkey_object)
         except Exception as e:
-            raise e
             self.logger.registerEvent("FAIL", f"Failed to Parse Invite Packet. Error: {e}.")
             return b'Error Parsing Your Registration Packet'
+
+    # CONNECTION 6 IMPLEMENTATION
+    #Function that Handles Connections of Type 6. Returns message board invitations by ID
+    
 
     # Function that Handles Packets that Should Be Signed by a User who has Previously established correct connection with the server
     # RETURNS: verified_boolean, data, client_public_key, client_id, signature

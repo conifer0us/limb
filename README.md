@@ -75,4 +75,20 @@ Then, Client 1 can begin crafting its packet to the server. Connection Type 5's 
 2. Client 2's 256 Bit Client ID
 3. Invite Key Data
 
-When the server receives this packet, it will first ensure that the signature is correct for the packet and that Client 1, submitting the invite, is the owner of the specified server. Then, the server will add the server to Client 2's Boards Database along with the Invite Key.
+When the server receives this packet, it will first ensure that the signature is correct for the packet and that Client 1, submitting the invite, is the owner of the specified server. Then, the server will add the server to Client 2's Boards Database along with the Invite Key. When this invitation is stored in Client 2's Boards database, SQL automatically assigns an ID number to that invite. This will be used in the next connection.
+
+### Get Invite (GETI): Connection Type 6
+
+Once Client 1 has added Client 2 to a message board, Client 2 has to be able to retrieve their key. This is what Connection Type 6 is for. In Connection 6, a client crafts a signed packet much like the previous packets. In the fourth part of the packet is the ID number of the invitation being queried. Invitation IDs on the server increment sequentially. Only one invitation is served from the server per connection. If there is no invitation in that ID slot, a blank packet is returned.
+
+When the server returns board information for the user, it is encrypted with the client's public key and ordered in the following way:
+
+1. The 256 bit server ID number
+2. The 256 byte signed server key that is encrypted with the client's public key
+3. The name of the server, encoded in ascii
+
+The client can then read and store this information its database of message boards. 
+
+### Post Message (POST): Connection Type 7
+
+### Get Message (GETM): Connection Type 8

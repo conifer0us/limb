@@ -29,7 +29,7 @@ class LimbDB:
     # Creates a User Boards Table to Store Information About what Boards the User is In. Includes Board ID, Board Key(encrypted with user pubkey), and Board Name
     def createUserBoardsTable(self, uidstring : str):
         if not DBUtils.tableExists(self.database, DBUtils.userdbname(uidstring)):
-            self.database.cursor().execute(f"CREATE TABLE {DBUtils.userdbname(uidstring)} (Board varchar(64), BoardKey varbinary, BoardName varchar)")
+            self.database.cursor().execute(f"CREATE TABLE {DBUtils.userdbname(uidstring)} (id INTEGER PRIMARY KEY AUTOINCREMENT, Board varchar(64), BoardKey varbinary, BoardName varchar)")
             self.database.commit()
             self.limbLogger.registerEvent("DATA", f"New User Boards Table Created ({DBUtils.userdbname(uidstring)})")
 
