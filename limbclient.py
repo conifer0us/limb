@@ -23,12 +23,8 @@ if __name__ == "__main__":
     database = LimbClientDB(options["DB"])
 
     socket = ClientPacketController("127.0.0.1", 6969, interface, LimbCrypto(options["PRIVKEYFILE"], options["PUBKEYFILE"]), database)
-
-    username = input("What would you like your username to be?")
-    print(socket.registerUsername(username))   
+  
     while True:
-        boardname = input("What would you like to name your board? ")
-        print(socket.registerNewMessageBoard(boardname))
-        inviteuser = input("What user would you like to invite? ")
-        inviteboard = input("What board would you like to invite them to? ")
-        print(socket.inviteUserToBoard(inviteuser, inviteboard))
+        boardname = input("What board would you like to post to? ")
+        message = input("What would you like to post? ")
+        print(socket.postMessage(message, boardname))

@@ -12,7 +12,7 @@ class LimbClientDB:
     # Initializes The Boards Database With Board ID, Board Name, Board Key, and Owner ID
     def createBoardsTable(self):
         if not DBUtils.tableExists(self.database, "Boards"):
-            self.database.cursor().execute("CREATE TABLE Boards (BoardID varchar(64), BoardName varchar, BoardKey varbinary, OwnerID varchar(64))")
+            self.database.cursor().execute("CREATE TABLE Boards (BoardID varchar(64), BoardName varchar, BoardKey varbinary)")
             self.database.commit()
 
     # Initializes The Users Database with UserID and Uname
@@ -33,13 +33,12 @@ class LimbClientDB:
         self.createUsersTable()
 
     # Adds Server Data to the Database
-    def addBoardToDB(self, BoardID : bytes, BoardName : str, BoardKey : bytes, OwnerID : bytes):
+    def addBoardToDB(self, BoardID : bytes, BoardName : str, BoardKey : bytes):
         boardstr = BoardID.hex()
-        ownerstr = OwnerID.hex()
 
         # Checks if a Message Board with this ID has already been created
         if not DBUtils.queryReturnsData(self.database, f"SELECT BoardID from Boards where BoardID='{boardstr}'"):
-            self.database.cursor().execute("INSERT INTO Boards (BoardID, BoardName, BoardKey, OwnerID) VALUES (?,?,?,?)", (boardstr, BoardName, BoardKey, ownerstr))
+            self.database.cursor().execute("INSERT INTO Boards (BoardID, BoardName, BoardKey) VALUES (?,?,?)", (boardstr, BoardName, BoardKey))
             self.database.commit()
             self.createBoardMessageDB(boardstr)
 
@@ -60,7 +59,7 @@ class LimbClientDB:
 
     # Gets Key of User by Name
     def getUserKeyByName(self, username : str) -> bytes:
-        database_data = DBUtils.fetchSingleRecord(self.database, f"SELECT Ukey FROM Users where Uname=?", (username,))
+        database_data = DBUtils.fetchSingleRecord(self.database, "SELECT Ukey FROM Users where Uname=?", (username,))
         if not database_data:
             return None
         else:
@@ -68,7 +67,7 @@ class LimbClientDB:
 
     # Gets the ID of a Board from a Name
     def getBoardIDByName(self, boardname : str) -> bytes:
-        database_data = DBUtils.fetchSingleRecord(self.database, f"SELECT BoardID from Boards WHERE BoardName=?", (boardname,))
+        database_data = DBUtils.fetchSingleRecord(self.database, "SELECT BoardID FROM Boards WHERE BoardName=?", (boardname,))
         if not database_data:
             return None
         else:
@@ -76,7 +75,7 @@ class LimbClientDB:
     
     # Gets the Key of a Board from a Name
     def getBoardKeyByID(self, boardID : bytes) -> bytes:
-        database_data = DBUtils.fetchSingleRecord(self.database, f"SELECT BoardKey FROM Boards WHERE BoardID=?", (boardID.hex(),))
+        database_data = DBUtils.fetchSingleRecord(self.database, "SELECT BoardKey FROM Boards WHERE BoardID=?", (boardID.hex(),))
         if not database_data:
             return None
         else:

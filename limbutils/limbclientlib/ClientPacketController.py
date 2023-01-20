@@ -50,7 +50,7 @@ class ClientPacketController:
         serverkeyhash = sha256(serverKey).digest() 
         packet = serverkeyhash + asciiboardname
         conn = self.sendSignedPacket(3, packet)
-        self.database.addBoardToDB(serverkeyhash, boardname, serverKey, self.clientID)
+        self.database.addBoardToDB(serverkeyhash, boardname, serverKey)
         return conn
 
     # CONNECTION 4 IMPLEMENTATION: Gets User Public Key from Username
@@ -89,6 +89,27 @@ class ClientPacketController:
         key = self.cryptograpy.decodePubKeyBytes(keybytes)
         packet_data = boardID + peerID + self.cryptograpy.encryptData(self.database.getBoardKeyByID(boardID), key)
         return self.sendSignedPacket(5, packet_data) 
+
+    # CONNECTION 6 IMPLEMENTATION: Gets a User's Invite By Id
+    def getInviteData(self, inviteid : int):
+        return_invite = self.sendSignedPacket(6, bytes([inviteid]), encryption_expected=True)
+        if return_invite == b'':
+            return None
+        server_id = return_invite[0:32]
+        server_key = self.cryptograpy.decryptData(return_invite[32:288])
+        server_name = return_invite[288:].decode("ascii")
+        self.database.addBoardToDB(server_id, server_name, server_key)
+
+    # CONNECTION 7 IMPLEMENTATION: Posts a Message to the Server
+    def postMessage(self, message : str, boardname : str):
+        boardID = self.database.getBoardIDByName(boardname)
+        if not boardID:
+            print("There is no board with that name.")
+            return b''
+        messagebytes = message.encode()
+        boardkey = self.database.getBoardKeyByID(boardID)
+        packetdata = boardID + LimbCrypto.aes_encrypt(messagebytes, boardkey, self.cryptograpy.getPubKeyBytes())
+        return self.sendSignedPacket(7, packetdata, encryption_expected=True) 
 
     # A Function that Works on top of GetRawDataPacket to Sign Messages before being Sent. Returns bytes data for response
     def sendSignedPacket(self, connectiontype : int, binarydata : bytes, encryption_expected = True) -> bytes:

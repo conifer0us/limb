@@ -154,3 +154,39 @@ class LimbDB:
             return b'User already on that board'
         self.addUserToBoard(invitedstr, boardstr, boardKey)
         return b'User Added to Board'
+
+    # Returns User Invite Bytes 
+    def getInviteForUser(self, uid : bytes, inviteid : int):
+        uidstr = uid.hex()
+        if not DBUtils.tableExists(self.database, DBUtils.userdbname(uidstr)):
+            self.limbLogger.registerEvent("FAIL", f"Invite requested but user ({uidstr}) not found.")
+            return b''
+        invitebytes = DBUtils.fetchSingleRecord(self.database, f"SELECT BoardKey FROM {DBUtils.userdbname(uidstr)} WHERE id=?", (inviteid,))
+        if not invitebytes:
+            self.limbLogger.registerEvent("FAIL", f"Invite requested but id ({inviteid}) not found.")
+            return b''
+        boardname = DBUtils.fetchSingleRecord(self.database, f"SELECT BoardName FROM {DBUtils.userdbname(uidstr)} WHERE id=?", (inviteid,))
+        boardID = DBUtils.fetchSingleRecord(self.database, f"SELECT Board FROM {DBUtils.userdbname(uidstr)} WHERE id=?", (inviteid,))
+        self.limbLogger.registerEvent("DATA", f"Invite ID {inviteid} returned for user {uidstr}")
+        return bytes.fromhex(boardID) + invitebytes + boardname.encode("ascii")
+    
+    # Inserts Message Data into Message Board
+    def registerMessage(self, uid : bytes, boardid : bytes, messagedata : bytes):
+        boardstr = boardid.hex()
+        userstr = uid.hex()
+        boarddb = DBUtils.boarddbname(boardstr)
+
+        if not DBUtils.tableExists(self.database, boarddb):
+            self.limbLogger.registerEvent("FAIL", "Message failed to post because board does not exist.")
+            return b''
+
+        if not self.userOnBoard(userstr, boardstr) and not self.userOwnsBoard(userstr, boardstr):
+            self.limbLogger.registerEvent("FAIL", "Message failed to post because user lacks permission.")
+            return b''
+
+        self.database.cursor().execute(f"INSERT INTO {boarddb} (Sender, EncMessage, SendTime) VALUES (?, ?, DATETIME())", (userstr, messagedata))
+        self.database.commit() 
+
+        self.limbLogger.registerEvent("DATA", f"New message inserted by user {userstr} into table {boarddb}.")
+
+        return b'1'

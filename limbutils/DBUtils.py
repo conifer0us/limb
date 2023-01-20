@@ -26,13 +26,13 @@ class DBUtils:
         return bool(query_results)
     
     # Fetches a Single Record from a Query if Record Exists. If not, returns None
-    def fetchSingleRecord(dbcon : Connection, query_str : str, query_tuple = None) -> bool:
+    def fetchSingleRecord(dbcon : Connection, query_str : str, query_tuple = None):
         try:
             if not query_tuple:
                 database_data = dbcon.cursor().execute(query_str).fetchall()
             else:
                 database_data = dbcon.cursor().execute(query_str, query_tuple).fetchall()
-        except:
+        except Exception:
             return None
         if (None,) in database_data:
             database_data.remove((None,))

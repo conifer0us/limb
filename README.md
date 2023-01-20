@@ -91,4 +91,15 @@ The client can then read and store this information its database of message boar
 
 ### Post Message (POST): Connection Type 7
 
+Now that two clients are in a message board together (with the potential for more to be added), the clients have to have the ability to post messages to the boards. 
+
+First, before the client posts the message, they have to figure out how to encrypt it. In order to do this, the client should assign the first 16 bytes of a sha256 hash of their public key as an initial value for AES encryption. Then, the client should use the stored 16 byte server key as the AES key. The client should then encrypt the message they wish to send with the AES key and Initial Vector. 
+
+Then, the client should craft a signed packet much like the packet for Connection Type 2. The fourth part of the packet whose signature should be checked is crafted using the following pieces of data in the following order:
+
+1. The 256 bit board ID number
+2. The AES encrypted message that anyone invited to the board will be able to read
+
+Once the server receives this packet, it will verify the signature, check whether the user is on the board, and log the message in the database for that board along with the user who sent it and the time it was sent.
+
 ### Get Message (GETM): Connection Type 8

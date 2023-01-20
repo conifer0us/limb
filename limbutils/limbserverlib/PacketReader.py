@@ -26,7 +26,9 @@ class PacketReader:
             2 : self.register_username, 
             3 : self.register_server, 
             4 : self.get_user_pubkey, 
-            5 : self.invite_user_to_board
+            5 : self.invite_user_to_board, 
+            6 : self.get_user_invite, 
+            7 : self.post_message
         }
 
     # A Method that interpret's packet data and calls the corresponding method on that data according to the type of request that is being processed
@@ -116,8 +118,27 @@ class PacketReader:
             return b'Error Parsing Your Registration Packet'
 
     # CONNECTION 6 IMPLEMENTATION
-    #Function that Handles Connections of Type 6. Returns message board invitations by ID
-    
+    # Function that Handles Connections of Type 6. Returns message board invitations by ID
+    def get_user_invite(self, bytearray : bytes) -> bytes:
+        verified_boolean, packetdata, client_pubkey_object, uidbytes, signature = self.ReadUIDSignedPacket(bytearray, ascii_encoding=False)
+        if not verified_boolean:
+            return b''
+        inviteid = int.from_bytes(packetdata, "big")
+        return_data = self.db.getInviteForUser(uidbytes, inviteid)
+        self.logger.registerEvent("GETI", f"User {uidbytes.hex()} requested invite ID {inviteid}. Returned {return_data}. Connection closed.")        
+        return self.EncryptWithClientKey(return_data, client_pubkey_object)
+
+    # CONNECTION 7 IMPLEMENTATION
+    # Function that Handles Connections of Type 7. Posts a message to a certain board.
+    def post_message(self, bytearray : bytes) -> bytes:
+        verified_boolean, packetdata, client_pubkey_object, uidbytes, signature = self.ReadUIDSignedPacket(bytearray, ascii_encoding=False)
+        if not verified_boolean:
+            return b''
+        boardID = packetdata[0:32]
+        messageData = packetdata[32:]
+        return_data = self.db.registerMessage(uidbytes, boardID, messageData)
+        self.logger.registerEvent("POST", f"User {uidbytes.hex()} attempted to post a message to board {boardID.hex()}. Returned {return_data}.")
+        return self.EncryptWithClientKey(return_data, client_pubkey_object)
 
     # Function that Handles Packets that Should Be Signed by a User who has Previously established correct connection with the server
     # RETURNS: verified_boolean, data, client_public_key, client_id, signature
