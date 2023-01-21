@@ -226,12 +226,13 @@ class PacketReader:
             client_pubkey_object = self.cryptography.decodePubKeyBytes(id_pubkey)
             signature = self.cryptography.decryptData(bytearray[256:768])
             new_byte_array = self.cryptography.decryptData(bytearray[768:])
+            return_val = new_byte_array
             if ascii_encoding:
-                new_byte_array = new_byte_array.decode('ascii')
+                return_val = new_byte_array.decode('ascii')
             self.cryptography.verifySignatureData(new_byte_array, signature, client_pubkey_object)
-            return True, new_byte_array, client_pubkey_object, uidbytes, signature
-        except:
-            self.logger.registerEvent("FAIL", "Signed packet type received, but could not be properly processed.")
+            return True, return_val, client_pubkey_object, uidbytes, signature
+        except Exception as e:
+            self.logger.registerEvent("FAIL", f"Signed packet type received, but could not be properly processed. Error: {e}")
             return False, None, None, None, None
 
     # A Simple Method that Encrypts a Message With the Key Supplied by the Client

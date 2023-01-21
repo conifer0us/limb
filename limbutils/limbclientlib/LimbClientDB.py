@@ -3,7 +3,6 @@
 import sqlite3 as sql 
 from sqlite3 import Connection
 from limbutils.DBUtils import DBUtils
-from hashlib import sha256
 from datetime import datetime
 
 class LimbClientDB: 
@@ -69,9 +68,13 @@ class LimbClientDB:
         return bytes.fromhex(senderID), messagedata, time
 
     # Gets the Latest Message ID for a certain Board ID
-    def getLatestMessageID(self, BoardID : bytes):
+    def getLatestMessageID(self, BoardID : bytes) -> int:
         boardstr = BoardID.hex()
         return self.database.cursor().execute(f"SELECT COUNT (*) FROM {DBUtils.boarddbname(boardstr)}").fetchone()[0]
+
+    # Gets the Latest Server Invite ID
+    def getLatestInviteID(self) -> int:
+        return self.database.cursor().execute(f"SELECT COUNT (*) FROM Boards WHERE OwnerBool=0").fetchone()[0]
 
     # Adds User Data to the Users Database
     def addUsersToDB(self, Uid : str, Uname : str, Ukey : bytes):
@@ -119,3 +122,11 @@ class LimbClientDB:
             return None
         else:
             return database_data
+
+    # Gets an Array with the Name of Every Board
+    def getAllBoards(self) -> list:
+        allboards = []
+        boardnames = self.database.cursor().execute("SELECT BoardName FROM Boards").fetchall()
+        for element in boardnames:
+            allboards.append(element[0])
+        return allboards

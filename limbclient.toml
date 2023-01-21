@@ -3,3 +3,5 @@
 PUBKEYFILE = "./limbclientpubkey.pem"
 PRIVKEYFILE = "./limbclientprivkey.pem"
 DB = "./limbclient.db"
+HOST = "127.0.0.1"
+PORT = 6969

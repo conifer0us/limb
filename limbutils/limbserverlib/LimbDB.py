@@ -62,11 +62,11 @@ class LimbDB:
     # Gets the Public Key that corresponds to the given User ID in the users database 
     def getPubKeyFromUID(self, uid : bytes) -> bytes:
         uidDigest = uid.hex()
-        return DBUtils.fetchSingleRecord("SELECT PubKey FROM users WHERE UserID=?", (uidDigest,))
+        return DBUtils.fetchSingleRecord(self.database, "SELECT PubKey FROM users WHERE UserID=?", (uidDigest,))
 
     # Gets the Name of a Board from its ID
     def getBoardNameFromID(self, boardid : str) -> str:
-        return DBUtils.fetchSingleRecord("SELECT Name FROM Boards WHERE BoardID=?", (boardid,))
+        return DBUtils.fetchSingleRecord(self.database, "SELECT Name FROM Boards WHERE BoardID=?", (boardid,))
 
     # Gets the String Identifier of a Message Board Owner
     def userOwnsBoard(self, uid : str, boardid : str) -> bool:
@@ -100,7 +100,7 @@ class LimbDB:
         return b'1'
 
     # Registers a Username Signature with its Public Key
-    def registerUName(self, uid : bytes, signature : bytes, uname : str) -> bytes:
+    def registerUName(self, uid : bytes, signature : bytes, uname : str):
         uidstr = uid.hex()
         
         # Checks if User already has a username

@@ -2,7 +2,6 @@
 
 import socket
 from limbutils.LimbCrypto import LimbCrypto
-from limbutils.limbclientlib.InterfaceController import InterfaceController
 from cryptography.hazmat.backends.openssl.rsa import _RSAPublicKey
 from limbutils.limbclientlib.LimbClientDB import LimbClientDB 
 from hashlib import sha256
@@ -14,16 +13,14 @@ class LimbServerAPI:
     port : int
     cryptograpy : LimbCrypto
     serverpubkey : _RSAPublicKey
-    interface : InterfaceController
     clientID: bytes
     database : LimbClientDB
     
-    # Initializes Client Packet Controller with a hostname, port, interface, and cryptography component
-    def __init__(self, hostname : str, port : int, interfaceController : InterfaceController, cryptographylib : LimbCrypto, database : LimbClientDB) -> None:
+    # Initializes Client Packet Controller with a hostname, port, and cryptography component
+    def __init__(self, hostname : str, port : int, cryptographylib : LimbCrypto, database : LimbClientDB) -> None:
         self.hostname = hostname
         self.port = port
         self.database = database
-        self.interface = interfaceController
         self.cryptograpy = cryptographylib
         self.clientID = sha256(self.cryptograpy.getPubKeyBytes()).digest()
         self.serverpubkey = self.getServerPublicKey()
@@ -50,14 +47,12 @@ class LimbServerAPI:
         serverdata = self.sendSignedPacket(2, asciiname)
         
         # If the Server Denies the Packet, return False
-        if serverdata == b'0':
-            return False
-        
-        # Logs the Current User in the Database
-        self.database.addUsersToDB(self.clientID.hex(), username, self.cryptograpy.getPubKeyBytes())
+        if serverdata == b'1':
+            # Logs the Current User in the Database
+            self.database.addUsersToDB(self.clientID.hex(), username, self.cryptograpy.getPubKeyBytes())
+            return True
 
-        return True
-        
+        return False
 
     # CONNECTION 3 IMPLEMENTATION: Registers a New Message Board with the Server
     def registerNewMessageBoard(self, boardname : str) -> bool:
@@ -131,7 +126,7 @@ class LimbServerAPI:
         return None
 
     # CONNECTION 5 IMPLEMENTATION: Invites Another User to Join a Board by Username
-    def inviteUserToBoard(self, username, boardname) -> bool:
+    def inviteUserToBoard(self, username : str, boardname : str) -> bool:
         # Checks if Board is Currently in Database
         boardID = self.database.getBoardIDByName(boardname)
         if not boardID:
@@ -229,6 +224,34 @@ class LimbServerAPI:
         self.database.addUsersToDB(id.hex(), uname, clientkey)
         return uname
 
+    # A Function that Contacts the Server to Obtain All Invites that the Server is Hosting for the Current User
+    def loadInvites(self):
+        current_invite_num = self.database.getLatestInviteID() + 1
+        
+        # Continues Contacting the Server for Invite Data Until the Server Returns No Data. Logs All Invites Received
+        while self.getInviteData(current_invite_num):
+            current_invite_num += 1
+
+    # A Function that Returns All Currently Joined Boards
+    def getBoards(self) -> list:
+        return self.database.getAllBoards()
+
+    # A Function that Tells if the User Owns a Board
+    def ownsBoard(self, boardname : str) -> bool:
+        return self.database.ownsBoard(self.database.getBoardIDByName(boardname))
+
+    # A Function that Loads All Messages From the Board Supplied
+    def loadMessages(self, boardname : str):
+        # Checks if the Board exists before loading messages to it
+        boardID = self.database.getBoardIDByName(boardname)
+        if not boardID:
+            return
+
+        current_message_num = self.database.getLatestMessageID(boardID)
+        while self.getMessage(boardname, current_message_num):
+            current_message_num += 1
+        return
+        
     # A Function that Works on top of GetRawDataPacket to Sign Messages before being Sent. Returns bytes data for response
     def sendSignedPacket(self, connectiontype : int, binarydata : bytes, encryption_expected = True) -> bytes:
         rawpacket = bytes([connectiontype]) + (
