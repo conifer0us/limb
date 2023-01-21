@@ -118,7 +118,7 @@ class PacketReader:
         return self.EncryptWithClientKey(return_data, client_pubkey_object)
 
     # CONNECTION 5 IMPLEMENTATION
-    #Function that Handles Connections of Type 4. Invites a User to a Message Board
+    #Function that Handles Connections of Type 5. Invites a User to a Message Board
     def invite_user_to_board(self, bytearray : bytes) -> bytes:
         try:
             verified_boolean, packetdata, client_pubkey_object, uidbytes, signature = self.ReadUIDSignedPacket(bytearray, ascii_encoding=False)

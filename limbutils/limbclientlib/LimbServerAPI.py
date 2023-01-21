@@ -8,7 +8,7 @@ from limbutils.limbclientlib.LimbClientDB import LimbClientDB
 from hashlib import sha256
 from limbutils.UsernameFormat import UsernameFormat
 
-class ClientPacketController:
+class LimbServerAPI:
 
     hostname : str
     port : int
@@ -18,7 +18,6 @@ class ClientPacketController:
     clientID: bytes
     database : LimbClientDB
     
-
     # Initializes Client Packet Controller with a hostname, port, interface, and cryptography component
     def __init__(self, hostname : str, port : int, interfaceController : InterfaceController, cryptographylib : LimbCrypto, database : LimbClientDB) -> None:
         self.hostname = hostname
@@ -34,103 +33,197 @@ class ClientPacketController:
         rawdata = self.GetRawDataPacket(bytes([1]) + self.cryptograpy.getPubKeyBytes())
         return self.cryptograpy.decodePubKeyBytes(rawdata)
     
-    # CONNECTION 2 IMPLEMENTATION: Sends a Username to Register with the Server
-    def registerUsername(self, username : str) -> bytes:
+    # Checks if The Database Currently has a Username for the User
+    def isUsernameRegistered(self) -> bool:
+        return self.database.getUserNameByID(self.clientID)
+
+    # CONNECTION 2 IMPLEMENTATION: Sends a Username to Register with the Server and Logs it Locally under Your Client ID
+    def registerUsername(self, username : str) -> bool:
+        if self.isUsernameRegistered():
+            return True
+
+        # Checks if the Username Supplied is Properly Formatted
         if not UsernameFormat.is_properly_formatted(username):
-            return b'Incorrect Name Format'
+            return False
+        
         asciiname = username.encode('ascii')
-        return self.sendSignedPacket(2, asciiname)
+        serverdata = self.sendSignedPacket(2, asciiname)
+        
+        # If the Server Denies the Packet, return False
+        if serverdata == b'0':
+            return False
+        
+        # Logs the Current User in the Database
+        self.database.addUsersToDB(self.clientID.hex(), username, self.cryptograpy.getPubKeyBytes())
+
+        return True
+        
 
     # CONNECTION 3 IMPLEMENTATION: Registers a New Message Board with the Server
-    def registerNewMessageBoard(self, boardname : str) -> bytes:
+    def registerNewMessageBoard(self, boardname : str) -> bool:
+
+        # Checks if Board Name Follows Naming Conventions (8 characters, Letters and Numbers)
         if not UsernameFormat.is_properly_formatted(boardname):
-            return b'Incorrect Name Format'
+            return False
+        
         asciiboardname = boardname.encode("ascii")
         serverKey = LimbCrypto.generate_aes_key()
-        serverkeyhash = sha256(serverKey).digest() 
+        serverkeyhash = sha256(serverKey).digest()
         packet = serverkeyhash + asciiboardname
+        
         conn = self.sendSignedPacket(3, packet)
-        self.database.addBoardToDB(serverkeyhash, boardname, serverKey, owner=True)
-        return conn
+        
+        # Returns True if Server Responds b'1' for Completed Operation Successfully
+        if conn == b'1':
+            self.database.addBoardToDB(serverkeyhash, boardname, serverKey, owner=True)
+            return True
+        return False
 
-    # CONNECTION 4 IMPLEMENTATION: Gets User Public Key from Username
-    def getUserKey(self, username : str) -> bytes:
+    # CONNECTION 4 IMPLEMENTATION: Gets User Public Key from Username and Registers the User in the Database
+    def _getUserKeyFromServer(self, username : str) -> bytes:
+        # If Username is Not Properly Formatted, Returns None
+        
         if not UsernameFormat.is_properly_formatted(username):
-            return b'Incorrect Name Format'
+            return None
+
         asciiname = username.encode('ascii')
         userkey = self.sendSignedPacket(4, asciiname)
         uid = sha256(userkey).hexdigest()
+
+        # If Client Successfully Reads Packet, User Info Added to Database
         try:
             self.cryptograpy.decodePubKeyBytes(userkey)
             self.database.addUsersToDB(uid, username, userkey)
             return userkey
+        
+        # Returns None if Client cannot Interpret Public Key Data
         except:
             return None
 
     # Returns a UserID for a Username; returns None if the User does not exist
     def getUserID(self, username : str) -> bytes:
+        # First Checks Database for Existing ID and Returns if Found
         id = self.database.getUserIDByName(username)
         if id:
             return id
-        id = self.getUserKey(username)
-        if not id:
-            return None
-        return sha256(id).digest()
+        
+        # Checks Network For ID. Returns if Found and Logs in Database through _getUserKeyFromServer
+        id = self._getUserKeyFromServer(username)
+        if id:
+            return sha256(id).digest()
+
+        # Returns None if Nothing Found
+        return None
+
+    # Returns a User Key for a Username
+    def getUserKey(self, username : str) -> _RSAPublicKey:
+        # First Checks Database for Existing Key and Returns if Found
+        key = self.database.getUserKeyByName(username)
+        if key:
+            return self.cryptograpy.decodePubKeyBytes(key)
+
+        #Checks Network for Key Data. Returns if Found and Logs User in Database through _getUserKeyFromServer
+        key = self._getUserKeyFromServer(username)
+        if key:
+            return self.cryptograpy.decodePubKeyBytes(key)
+
+        # Returns None if Nothing Found
+        return None
 
     # CONNECTION 5 IMPLEMENTATION: Invites Another User to Join a Board by Username
-    def inviteUserToBoard(self, username, boardname):
+    def inviteUserToBoard(self, username, boardname) -> bool:
+        # Checks if Board is Currently in Database
         boardID = self.database.getBoardIDByName(boardname)
         if not boardID:
-            return b'Board Not Found'
+            return False
+
+        # Checks if User Exists on Server or Locally
         peerID = self.getUserID(username)
         if not peerID:
-            return b'User Not Found'
+            return False
+
+        # Checks if User Owns the Board
+        if not self.database.ownsBoard(boardID):
+            return False
+
         keybytes = self.database.getUserKeyByName(username)
         key = self.cryptograpy.decodePubKeyBytes(keybytes)
         packet_data = boardID + peerID + self.cryptograpy.encryptData(self.database.getBoardKeyByID(boardID), key)
-        return self.sendSignedPacket(5, packet_data) 
+        
+        serverresp = self.sendSignedPacket(5, packet_data) 
+        if serverresp == b'1':
+            return True
+        return False
 
     # CONNECTION 6 IMPLEMENTATION: Gets a User's Invite By Id
-    def getInviteData(self, inviteid : int):
-        return_invite = self.sendSignedPacket(6, bytes([inviteid]), encryption_expected=True)
-        if return_invite == b'':
-            return None
-        server_id = return_invite[0:32]
-        server_key = self.cryptograpy.decryptData(return_invite[32:288])
-        server_name = return_invite[288:].decode("ascii")
+    # Returns True if Invite Data was Succesfully Returned, False if no Data was Returned
+    def getInviteData(self, inviteid : int) -> bool:
+        serverresp = self.sendSignedPacket(6, bytes([inviteid]), encryption_expected=True)
+        
+        if serverresp == b'0':
+            return False
+
+        # Parse Server Response and Add Board to Boards Database
+        server_id = serverresp[0:32]
+        server_key = self.cryptograpy.decryptData(serverresp[32:288])
+        server_name = serverresp[288:].decode("ascii")
         self.database.addBoardToDB(server_id, server_name, server_key)
+        return True
 
     # CONNECTION 7 IMPLEMENTATION: Posts a Message to the Server
-    def postMessage(self, message : str, boardname : str):
+    def postMessage(self, message : str, boardname : str) -> bool:
+        # Checks if Board Exists in your Database
         boardID = self.database.getBoardIDByName(boardname)
         if not boardID:
-            return b''
+            return False
+
+        # Encrypt Message with AES
         messagebytes = message.encode()
         boardkey = self.database.getBoardKeyByID(boardID)
         packetdata = boardID + LimbCrypto.aes_encrypt(messagebytes, boardkey, self.cryptograpy.getPubKeyBytes())
-        return self.sendSignedPacket(7, packetdata, encryption_expected=True) 
+        
+        # See if Server Accepted Message
+        serverresp = self.sendSignedPacket(7, packetdata, encryption_expected=True) 
+        if serverresp == b'1':
+            return True
+        return False
 
     # CONNECTION 8 IMPLEMENTATION: Gets a Message From the Server
-    def getMessage(self, boardname : str, messageID : int) -> str:
+    # Returns True if Message Successfully Received, False Otherwise
+    def getMessage(self, boardname : str, messageID : int) -> bool:
+
+        # Checks if Board is in User's Database
         boardID = self.database.getBoardIDByName(boardname)
         if not boardID:
-            return b''
+            return False
+
+        # Build Packet and Check if Server Accepted Response
         packetdata = boardID + bytes([messageID])
         return_info = self.sendSignedPacket(8, packetdata, encryption_expected=True)
-        if return_info == b'':
-            return b''
+        if return_info == b'0':
+            return False
+
+        # Parse Packet if Server Accepted Response
         senderID = return_info[0:32]
         timestamp = return_info[32:40]
         message = LimbCrypto.aes_decrypt(return_info[40:], self.database.getBoardKeyByID(boardID), self.getUserKey(self.getUname(senderID)))
+        
+        # Add Message to Database and Return True
         self.database.addMessageToDB(boardID, senderID, timestamp, message)
+        return True
 
-    # CONNECTION 9 IMPLEMENTATION: Gets a Username From ID Bytes
+    # CONNECTION 9 IMPLEMENTATION: Gets a Username From ID Bytes and log user info 
     def getUname(self, id : bytes) -> str:
+        # If User in the Database, return the username
         dbid = self.database.getUserNameByID(id)
         if dbid: return dbid
+
+        # Send Packet for Username if Not in Database; If not in Packet, return None
         packetdata = self.sendSignedPacket(9, id, encryption_expected=True)
-        if packetdata == b'':
-            return
+        if packetdata == b'0':
+            return None
+
+        # Return Username Received in Packet
         uname = packetdata.decode('ascii')
         clientkey = self.getUserKey(uname)
         self.database.addUsersToDB(id.hex(), uname, clientkey)

@@ -1,6 +1,6 @@
 # The Limb Client | Connects to Limb Servers
 
-from limbutils.limbclientlib.ClientPacketController import ClientPacketController
+from limbutils.limbclientlib.LimbServerAPI import LimbServerAPI
 from limbutils.limbclientlib.InterfaceController import InterfaceController
 from limbutils.LimbCrypto import LimbCrypto
 from limbutils.limbclientlib.LimbClientDB import LimbClientDB
@@ -23,14 +23,14 @@ if __name__ == "__main__":
 
     database = LimbClientDB(options["DB"])
 
-    socket = ClientPacketController("127.0.0.1", 6969, interface, LimbCrypto(options["PRIVKEYFILE"], options["PUBKEYFILE"]), database)
+    limbserver = LimbServerAPI("127.0.0.1", 6969, interface, LimbCrypto(options["PRIVKEYFILE"], options["PUBKEYFILE"]), database)
 
-    socket.getMessage("hell2", 1)
+    limbserver.getMessage("hell2", 1)
 
-    socket.registerUsername(input("What username would you like? "))
-    socket.registerNewMessageBoard(input("What would you like to name your board? "))
+    limbserver.registerUsername(input("What username would you like? "))
+    limbserver.registerNewMessageBoard(input("What would you like to name your board? "))
 
     while True:
         boardname = input("What board would you like to post to? ")
         message = input("What would you like to post? ")
-        print(socket.postMessage(message, boardname))
+        print(limbserver.postMessage(message, boardname))

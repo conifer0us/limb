@@ -16,9 +16,12 @@ class DBUtils:
         return bool(dbcon.cursor().execute(f"""SELECT name FROM sqlite_master WHERE type='table' AND name='{tablename}';""").fetchall())
 
     # Checks if a Given Query Returns any Data
-    def queryReturnsData(dbcon : Connection, query_str : str) -> bool:
+    def queryReturnsData(dbcon : Connection, query_str : str, query_tuple = None) -> bool:
         try:
-            query_results = dbcon.cursor().execute(query_str).fetchall()
+            if not query_tuple:
+                query_results = dbcon.cursor().execute(query_str).fetchall()
+            else:
+                query_results = dbcon.cursor().execute(query_str, query_tuple).fetchall()
         except:
             return None
         if (None,) in query_results:
