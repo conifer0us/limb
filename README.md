@@ -120,3 +120,7 @@ Once the server receives this packet, it checks that the board exists and that t
 Connection Type 9 is necessary to implement connection type 8, as clients will have to receive the usernames of the people they are receiving messages from, both to show the message and to get public key data for that user.
 
 Connection Type 9 is implemented as a signed packet, much like Connection Type 2. The client will only include in the data part of the packet the 256 bit ID that they wish to gather the username for. The Server will return either a username that is ascii encoded or a blank byte string to signify that the record does not exist.
+
+## Return Scheme
+
+The Limb Server is equipped with logging to handle many different types of errors and invalid inputs. In the case one of these happens, the limb server must return some piece of data to the client indicating that something has gone wrong. Typically, if the Limb Server encounters a problem or does not have a resource of some kind, it will return a string 0 byte (b'0'). In the case where the user is posting data, the Server will return a string 1 byte (b'1') to indicate success and an empty byte string to indicate failure.

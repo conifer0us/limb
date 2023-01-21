@@ -50,58 +50,54 @@ class LimbDB:
 
     # Gets the Public Key that corresponds to the given Username in the users database
     def getPubKeyFromUsername(self, username : str) -> bytes:
-        try:
-            return self.database.cursor().execute(f"SELECT PubKey FROM users WHERE Uname='{username}'").fetchall()[0][0]
-        except:
-            return None
+        return DBUtils.fetchSingleRecord(self.database, "SELECT PubKey FROM users WHERE Uname=?", (username,))
 
     # Gets the Username of a user from ID
-    def getUsernameFromID(self, uid : bytes) -> bytes:
-        return_data = DBUtils.fetchSingleRecord(self.database, f"SELECT Uname FROM users WHERE UserID=?", (uid.hex(),))
-        if not return_data: return b''
+    def getUsernameFromID(self, uid : bytes):
+        uidDigest = uid.hex()
+        return_data = DBUtils.fetchSingleRecord(self.database, "SELECT Uname FROM users WHERE UserID=?", (uidDigest,))
+        if not return_data: return b'0'
         return return_data.encode("ascii")
 
     # Gets the Public Key that corresponds to the given User ID in the users database 
     def getPubKeyFromUID(self, uid : bytes) -> bytes:
         uidDigest = uid.hex()
-        try:
-            return self.database.cursor().execute(f"SELECT PubKey FROM users WHERE UserID='{uidDigest}'").fetchall()[0][0]
-        except:
-            return None
+        return DBUtils.fetchSingleRecord("SELECT PubKey FROM users WHERE UserID=?", (uidDigest,))
 
     # Gets the Name of a Board from its ID
     def getBoardNameFromID(self, boardid : str) -> str:
-        try:
-            return self.database.cursor().execute(f"SELECT Name FROM Boards WHERE BoardID='{boardid}'").fetchall()[0][0]
-        except:
-            return None
+        return DBUtils.fetchSingleRecord("SELECT Name FROM Boards WHERE BoardID=?", (boardid,))
 
     # Gets the String Identifier of a Message Board Owner
     def userOwnsBoard(self, uid : str, boardid : str) -> bool:
-        return DBUtils.queryReturnsData(self.database, f"SELECT BoardID FROM boards WHERE (BoardID='{boardid}' AND OwnerID='{uid}')")
+        return DBUtils.queryReturnsData(self.database, "SELECT BoardID FROM boards WHERE (BoardID=? AND OwnerID=?)", (boardid, uid))
 
     # Checks if a Specific Message Board has been assigned to a user
     def userOnBoard(self, uid : str, boardid : str) -> bool:
-        return DBUtils.queryReturnsData(self.database, f"SELECT Board FROM {DBUtils.userdbname(uid)} WHERE Board='{boardid}'")
+        return DBUtils.queryReturnsData(self.database, f"SELECT Board FROM {DBUtils.userdbname(uid)} WHERE Board=?", (boardid,))
 
     # Takes in a User's ID and a Message Board's ID and adds the Message Board to the User's Boards Table. Includes an encrypted key for the board
     def addUserToBoard(self, userid : str, boardid: str, boardkey : bytes) -> None:
         boardname = self.getBoardNameFromID(boardid)
+        if not boardname:
+            return
         self.database.cursor().execute(f"INSERT INTO {DBUtils.userdbname(userid)} (Board, BoardKey, BoardName) VALUES (?, ?, ?)", (boardid, boardkey, boardname))
         self.database.commit()
-        self.limbLogger.registerEvent("DATA", f"User {userid} added to message board {boardid}")
+        self.limbLogger.registerEvent("DATA", f"User {userid} added to message board {boardid}.")
 
     # Registers a User's Key with its ID (Key's Hash Value)
-    def registerKeyHash(self, keydata : bytes) -> None:
+    def registerKeyHash(self, keydata : bytes):
         uid = sha256(keydata).hexdigest()
+
         # Following Statement Checks if UserID is already in users table
-        if DBUtils.queryReturnsData(self.database, f"SELECT UserID FROM users WHERE UserID='{uid}'"):
-            return
-        SQL_statement = "INSERT INTO users(UserID, PubKey) VALUES (?, ?)"
-        data = (uid, keydata)
-        self.database.cursor().execute(SQL_statement, data)
+        if DBUtils.queryReturnsData(self.database, f"SELECT UserID FROM users WHERE UserID=?", (uid,)):
+            self.limbLogger.registerEvent("FAIL", f"User {uid} tried to register a user ID that already exists.")
+            return b'0'
+        
+        self.database.cursor().execute("INSERT INTO users (UserID, PubKey) VALUES (?, ?)", (uid, keydata))
         self.database.commit()
-        self.limbLogger.registerEvent("DATA", f"New User ({uid}) Inserted into Table")
+        self.limbLogger.registerEvent("DATA", f"New User ({uid}) Inserted into Table.")
+        return b'1'
 
     # Registers a Username Signature with its Public Key
     def registerUName(self, uid : bytes, signature : bytes, uname : str) -> bytes:
@@ -109,32 +105,34 @@ class LimbDB:
         
         # Checks if User already has a username
         if DBUtils.queryReturnsData(self.database, f"SELECT Uname FROM users WHERE UserID='{uidstr}'"):
-            return b'Username Already Added for this User'
+            self.limbLogger.registerEvent("FAIL", f"User {uidstr} already has a username.")
+            return b'0'
 
         # Checks if User is trying to register a username that already exists
         if DBUtils.queryReturnsData(self.database, f"SELECT Uname FROM users WHERE Uname='{uname}'"):
-            return b'Username Already Taken'
+            self.limbLogger.registerEvent("FAIL", f"User {uidstr} is trying to register a username that already exists.")
+            return b'0'
 
         # Updates User with only Key and ID data. Adds Username and Signature
-        SQL_statement = "UPDATE users SET Uname= ?, UnameSignature = ? WHERE UserID = ?"
-        data = (uname, signature, uidstr)
-        self.database.cursor().execute(SQL_statement, data)
+        self.database.cursor().execute("UPDATE users SET Uname= ?, UnameSignature = ? WHERE UserID = ?", (uname, signature, uidstr))
         self.createUserBoardsTable(uidstr)
-        self.limbLogger.registerEvent("DATA", f"Username and Signature Set for User {uidstr}")
-        return b'Username Added'
+        self.limbLogger.registerEvent("DATA", f"Username and Signature Set for User {uidstr}.")
+        return b'1'
 
     # Creates a Message Board with the Given Name and Hash ID
-    def registerMessageBoard(self, boardid : bytes, boardname : str, creatoruid : bytes) -> bytes:
+    def registerMessageBoard(self, boardid : bytes, boardname : str, creatoruid : bytes):
         board_str = boardid.hex()
         creator_str = creatoruid.hex()
 
         # Returns If a Message Board with a Given ID has already been registered
         if DBUtils.queryReturnsData(self.database, f"SELECT BoardID FROM boards WHERE BoardID='{board_str}'"):
-            return b'A message board with this ID has already been added.'
+            self.limbLogger.registerEvent("FAIL", f"User {creator_str} attempted to register a message board, but the ID was already taken.")
+            return b'0'
         
         # Returns If a Message Board with a Given Name has already been created 
         if DBUtils.queryReturnsData(self.database, f"SELECT Name FROM boards WHERE Name='{boardname}'"):
-            return b'A message board with that name already exists.'
+            self.limbLogger.registerEvent("FAIL", f"User {creator_str} attempted to register a message board, but the Name was already taken.")
+            return b'0'
 
         # Adds the Board Data into the Boards Table
         SQL_statement = "INSERT INTO boards (BoardID, Name, OwnerID) VALUES (?, ?, ?)"
@@ -145,36 +143,52 @@ class LimbDB:
         # Creates A Board Message Table for the current Board ID
         self.createBoardMessageTable(board_str)
 
-        self.limbLogger.registerEvent("DATA", f"Message Board {boardname} created for user {creator_str}")
-        return b'Message Board Created'
+        self.limbLogger.registerEvent("DATA", f"Message Board {boardname} created for user {creator_str}.")
+        return b'1'
 
     # Invites a User to a Message Board by Adding the Board to the User's Database
-    def inviteUserToBoard(self, inviterID : bytes, invitedID : bytes, boardID : bytes, boardKey : bytes) -> bytes:
+    def inviteUserToBoard(self, inviterID : bytes, invitedID : bytes, boardID : bytes, boardKey : bytes):
         invitedstr = invitedID.hex()
         inviterstr = inviterID.hex()
         boardstr = boardID.hex()
+        
+        # Checks if User's Boards Table Exists Already
         if not DBUtils.tableExists(self.database, DBUtils.userdbname(invitedstr)):
-            return b'That User Does Not Exist'
+            self.limbLogger.registerEvent("FAIL", f"User {inviterstr} attempted to invite a user that does not exist.")
+            return b'0'
+        
+        # Checks if User Owns a Board 
         if not self.userOwnsBoard(inviterstr, boardstr):
-            return b'You do not have permission to access that board'
+            self.limbLogger.registerEvent("FAIL", f"User {inviterstr} attempted to invite a user to a table that they do not own.")
+            return b'0'
+        
+        # Checks if the User is Already on the Board
         if self.userOnBoard(invitedstr, boardstr) or self.userOwnsBoard(invitedstr, boardstr):
-            return b'User already on that board'
+            self.limbLogger.registerEvent("FAIL", f"User {inviterstr} attempted to invite a user that is already on the board.")
+            return b'0'
+
         self.addUserToBoard(invitedstr, boardstr, boardKey)
-        return b'User Added to Board'
+        self.limbLogger.registerEvent("DATA", f"User {inviterstr} successfully invited {invitedstr} to join board {boardstr}.")
+        return b'1'
 
     # Returns User Invite Bytes 
     def getInviteForUser(self, uid : bytes, inviteid : int):
         uidstr = uid.hex()
+
         if not DBUtils.tableExists(self.database, DBUtils.userdbname(uidstr)):
-            self.limbLogger.registerEvent("FAIL", f"Invite requested but user ({uidstr}) not found.")
-            return b''
+            self.limbLogger.registerEvent("FAIL", f"Invite requested but user {uidstr} not found.")
+            return b'0'
+        
         invitebytes = DBUtils.fetchSingleRecord(self.database, f"SELECT BoardKey FROM {DBUtils.userdbname(uidstr)} WHERE id=?", (inviteid,))
+        
         if not invitebytes:
-            self.limbLogger.registerEvent("FAIL", f"Invite requested but id ({inviteid}) not found.")
-            return b''
+            self.limbLogger.registerEvent("FAIL", f"Invite requested by user {uidstr} but invite id ({inviteid}) not found.")
+            return b'0'
+        
         boardname = DBUtils.fetchSingleRecord(self.database, f"SELECT BoardName FROM {DBUtils.userdbname(uidstr)} WHERE id=?", (inviteid,))
         boardID = DBUtils.fetchSingleRecord(self.database, f"SELECT Board FROM {DBUtils.userdbname(uidstr)} WHERE id=?", (inviteid,))
-        self.limbLogger.registerEvent("DATA", f"Invite ID {inviteid} returned for user {uidstr}")
+
+        self.limbLogger.registerEvent("DATA", f"Invite ID {inviteid} returned for user {uidstr}.")
         return bytes.fromhex(boardID) + invitebytes + boardname.encode("ascii")
     
     # Inserts Message Data into Message Board
@@ -185,17 +199,16 @@ class LimbDB:
 
         if not DBUtils.tableExists(self.database, boarddb):
             self.limbLogger.registerEvent("FAIL", "Message failed to post because board does not exist.")
-            return b''
+            return b'0'
 
         if not self.userOnBoard(userstr, boardstr) and not self.userOwnsBoard(userstr, boardstr):
             self.limbLogger.registerEvent("FAIL", "Message failed to post because user lacks permission.")
-            return b''
+            return b'0'
 
         self.database.cursor().execute(f"INSERT INTO {boarddb} (Sender, EncMessage, SendTime) VALUES (?, ?, ?)", (userstr, messagedata, int(time())))
         self.database.commit() 
 
         self.limbLogger.registerEvent("DATA", f"New message inserted by user {userstr} into table {boarddb}.")
-
         return b'1'
 
     # Gets Message Data From Message Board
@@ -203,17 +216,19 @@ class LimbDB:
         userstr = uid.hex()
         boardstr = boardid.hex()
         boarddb = DBUtils.boarddbname(boardstr)
+
         if not DBUtils.tableExists(self.database, boarddb):
-            self.limbLogger.registerEvent("FAIL", "Message failed to post because board does not exist.")
-            return b''
+            self.limbLogger.registerEvent("FAIL", f"Failed to get message data since board {boardstr} does not exist.")
+            return b'0'
 
         if not self.userOnBoard(userstr, boardstr) and not self.userOwnsBoard(userstr, boardstr):
-            self.limbLogger.registerEvent("FAIL", "Message failed to post because user lacks permission.")
-            return b''
+            self.limbLogger.registerEvent("FAIL", f"Failed to get message data because user {userstr} lacks permission.")
+            return b'0'
 
         messagesender = DBUtils.fetchSingleRecord(self.database, f"SELECT Sender FROM {boarddb} WHERE id=?", (messageID,))
         if not messagesender:
-            return b''
+            self.limbLogger.registerEvent("FAIL", f"Failed to get message data. ID not found.")
+            return b'0'
 
         messagedata = DBUtils.fetchSingleRecord(self.database, f"SELECT EncMessage FROM {boarddb} WHERE id=?", (messageID,))
         
