@@ -174,7 +174,7 @@ class LimbCrypto:
         return aes_obj.encrypt(inputbytes)
 
     # A function that Decrypts a given set of bytes with AES encryption using a supplied key and initial vector
-    def aes_encrypt(inputbytes : bytes, key : bytes, ivseed : bytes) -> bytes:
+    def aes_decrypt(inputbytes : bytes, key : bytes, ivseed : bytes) -> bytes:
         aes_obj = AES.new(key, AES.MODE_CFB, LimbCrypto.calculate_aes_iv(ivseed))
         return aes_obj.decrypt(inputbytes)
 

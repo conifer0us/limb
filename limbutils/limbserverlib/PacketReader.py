@@ -28,7 +28,9 @@ class PacketReader:
             4 : self.get_user_pubkey, 
             5 : self.invite_user_to_board, 
             6 : self.get_user_invite, 
-            7 : self.post_message
+            7 : self.post_message, 
+            8 : self.return_message, 
+            9 : self.returnNameFromID
         }
 
     # A Method that interpret's packet data and calls the corresponding method on that data according to the type of request that is being processed
@@ -39,7 +41,7 @@ class PacketReader:
             return self.packet_function_mapping[packetMode](bytearray[1:])
         except KeyError:
             self.logger.registerEvent("FAIL", f"Attempted Connection Did not Contain Proper Packet Type.")
-            return b'10'
+            return b''
 
     # CONNECTION 1 IMPLEMENTATION
     # A Method that Handles Type 1: Establish Requests. It takes a Public Key from a User, registers the User using the DB class, and returns the server's public key, encrypted with the client's supplied key to aid further communication.
@@ -138,6 +140,29 @@ class PacketReader:
         messageData = packetdata[32:]
         return_data = self.db.registerMessage(uidbytes, boardID, messageData)
         self.logger.registerEvent("POST", f"User {uidbytes.hex()} attempted to post a message to board {boardID.hex()}. Returned {return_data}.")
+        return self.EncryptWithClientKey(return_data, client_pubkey_object)
+
+    # CONNECTION 8 IMPLEMTATION
+    # Function that Handles Connections of Type 8. Returns a message from a certain message board.
+    def return_message(self, bytearray : bytes) -> bytes:
+        verified_boolean, packetdata, client_pubkey_object, uidbytes, signature = self.ReadUIDSignedPacket(bytearray, ascii_encoding=False)
+        if not verified_boolean:
+            return b''
+        boardid = packetdata[0:32]
+        messageID = int.from_bytes(packetdata[32:], "big")
+        return_data = self.db.getMessageData(uidbytes, boardid, messageID)
+        self.logger.registerEvent("GETM", f"User {uidbytes.hex()} attempted to get message data for board {boardid.hex()}. Returned {return_data}.")
+        return self.EncryptWithClientKey(return_data, client_pubkey_object)
+
+    # CONNECTION 9 IMPLEMENTATION
+    # Function that Handles Connections of Type 9. Returns a Username from a user ID
+    def returnNameFromID(self, bytearray : bytes) -> bytes:
+        verified_boolean, packetdata, client_pubkey_object, uidbytes, signature = self.ReadUIDSignedPacket(bytearray, ascii_encoding=False)
+        if not verified_boolean:
+            return b''
+        userid = packetdata[0:32]
+        return_data = self.db.getUsernameFromID(userid)
+        self.logger.registerEvent("GETN", f"User {uidbytes.hex()} requested user data for {userid.hex()}. Returned {return_data}.")
         return self.EncryptWithClientKey(return_data, client_pubkey_object)
 
     # Function that Handles Packets that Should Be Signed by a User who has Previously established correct connection with the server

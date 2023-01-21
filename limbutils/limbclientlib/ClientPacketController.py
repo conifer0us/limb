@@ -50,7 +50,7 @@ class ClientPacketController:
         serverkeyhash = sha256(serverKey).digest() 
         packet = serverkeyhash + asciiboardname
         conn = self.sendSignedPacket(3, packet)
-        self.database.addBoardToDB(serverkeyhash, boardname, serverKey)
+        self.database.addBoardToDB(serverkeyhash, boardname, serverKey, owner=True)
         return conn
 
     # CONNECTION 4 IMPLEMENTATION: Gets User Public Key from Username
@@ -104,12 +104,37 @@ class ClientPacketController:
     def postMessage(self, message : str, boardname : str):
         boardID = self.database.getBoardIDByName(boardname)
         if not boardID:
-            print("There is no board with that name.")
             return b''
         messagebytes = message.encode()
         boardkey = self.database.getBoardKeyByID(boardID)
         packetdata = boardID + LimbCrypto.aes_encrypt(messagebytes, boardkey, self.cryptograpy.getPubKeyBytes())
         return self.sendSignedPacket(7, packetdata, encryption_expected=True) 
+
+    # CONNECTION 8 IMPLEMENTATION: Gets a Message From the Server
+    def getMessage(self, boardname : str, messageID : int) -> str:
+        boardID = self.database.getBoardIDByName(boardname)
+        if not boardID:
+            return b''
+        packetdata = boardID + bytes([messageID])
+        return_info = self.sendSignedPacket(8, packetdata, encryption_expected=True)
+        if return_info == b'':
+            return b''
+        senderID = return_info[0:32]
+        timestamp = return_info[32:40]
+        message = LimbCrypto.aes_decrypt(return_info[40:], self.database.getBoardKeyByID(boardID), self.getUserKey(self.getUname(senderID)))
+        self.database.addMessageToDB(boardID, senderID, timestamp, message)
+
+    # CONNECTION 9 IMPLEMENTATION: Gets a Username From ID Bytes
+    def getUname(self, id : bytes) -> str:
+        dbid = self.database.getUserNameByID(id)
+        if dbid: return dbid
+        packetdata = self.sendSignedPacket(9, id, encryption_expected=True)
+        if packetdata == b'':
+            return
+        uname = packetdata.decode('ascii')
+        clientkey = self.getUserKey(uname)
+        self.database.addUsersToDB(id.hex(), uname, clientkey)
+        return uname
 
     # A Function that Works on top of GetRawDataPacket to Sign Messages before being Sent. Returns bytes data for response
     def sendSignedPacket(self, connectiontype : int, binarydata : bytes, encryption_expected = True) -> bytes:

@@ -103,3 +103,20 @@ Then, the client should craft a signed packet much like the packet for Connectio
 Once the server receives this packet, it will verify the signature, check whether the user is on the board, and log the message in the database for that board along with the user who sent it and the time it was sent.
 
 ### Get Message (GETM): Connection Type 8
+
+The only kind of communication that is still necessary for the users to exchange information on the board is to retrieve messages sent to the boards that they are a part of. To do this, the client can craft a signed packet much like the packet in Connection Type 2. The data in the fourth part of the packet that is being signed is composed of two parts:
+
+1. The 256 bit board ID number
+2. The desired message ID to retrieve
+
+Once the server receives this packet, it checks that the board exists and that the user has permission to access it. Then, it checks for the message data. If it finds the message data, the server returns the data for the message as follows:
+
+1. The 256 bit sender ID
+2. The 64 bit unix timestamp on which the message was submitted
+3. The message data, encrypted by the sender using the server key
+
+### Get Username (GETN): Connection Type 9
+
+Connection Type 9 is necessary to implement connection type 8, as clients will have to receive the usernames of the people they are receiving messages from, both to show the message and to get public key data for that user.
+
+Connection Type 9 is implemented as a signed packet, much like Connection Type 2. The client will only include in the data part of the packet the 256 bit ID that they wish to gather the username for. The Server will return either a username that is ascii encoded or a blank byte string to signify that the record does not exist.

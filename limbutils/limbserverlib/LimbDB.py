@@ -4,6 +4,7 @@ import sqlite3 as sql
 from limbutils.limbserverlib.LimbLogger import LimbLogger
 from hashlib import sha256
 from limbutils.DBUtils import DBUtils
+from time import time
 
 class LimbDB:
     db_file = None
@@ -53,6 +54,12 @@ class LimbDB:
             return self.database.cursor().execute(f"SELECT PubKey FROM users WHERE Uname='{username}'").fetchall()[0][0]
         except:
             return None
+
+    # Gets the Username of a user from ID
+    def getUsernameFromID(self, uid : bytes) -> bytes:
+        return_data = DBUtils.fetchSingleRecord(self.database, f"SELECT Uname FROM users WHERE UserID=?", (uid.hex(),))
+        if not return_data: return b''
+        return return_data.encode("ascii")
 
     # Gets the Public Key that corresponds to the given User ID in the users database 
     def getPubKeyFromUID(self, uid : bytes) -> bytes:
@@ -184,9 +191,31 @@ class LimbDB:
             self.limbLogger.registerEvent("FAIL", "Message failed to post because user lacks permission.")
             return b''
 
-        self.database.cursor().execute(f"INSERT INTO {boarddb} (Sender, EncMessage, SendTime) VALUES (?, ?, DATETIME())", (userstr, messagedata))
+        self.database.cursor().execute(f"INSERT INTO {boarddb} (Sender, EncMessage, SendTime) VALUES (?, ?, ?)", (userstr, messagedata, int(time())))
         self.database.commit() 
 
         self.limbLogger.registerEvent("DATA", f"New message inserted by user {userstr} into table {boarddb}.")
 
         return b'1'
+
+    # Gets Message Data From Message Board
+    def getMessageData(self, uid : bytes, boardid : bytes, messageID : int):
+        userstr = uid.hex()
+        boardstr = boardid.hex()
+        boarddb = DBUtils.boarddbname(boardstr)
+        if not DBUtils.tableExists(self.database, boarddb):
+            self.limbLogger.registerEvent("FAIL", "Message failed to post because board does not exist.")
+            return b''
+
+        if not self.userOnBoard(userstr, boardstr) and not self.userOwnsBoard(userstr, boardstr):
+            self.limbLogger.registerEvent("FAIL", "Message failed to post because user lacks permission.")
+            return b''
+
+        messagesender = DBUtils.fetchSingleRecord(self.database, f"SELECT Sender FROM {boarddb} WHERE id=?", (messageID,))
+        if not messagesender:
+            return b''
+
+        messagedata = DBUtils.fetchSingleRecord(self.database, f"SELECT EncMessage FROM {boarddb} WHERE id=?", (messageID,))
+        
+        messagetime = int.to_bytes(DBUtils.fetchSingleRecord(self.database, f"SELECT SendTime FROM {boarddb} WHERE id=?", (messageID,)), 8, 'big')
+        return bytes.fromhex(messagesender) + messagetime + messagedata
